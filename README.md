@@ -70,7 +70,6 @@ We welcome contributions from the community! Please submit a pull request or ope
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
-- OpenAI for the foundational language models.
 - Gemini and OpenRouter for robust API support.
 
 ---
