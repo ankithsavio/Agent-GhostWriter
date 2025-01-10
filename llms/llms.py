@@ -21,7 +21,7 @@
 # print(completion.choices[0].message)
 
 from openai import OpenAI
-import google.generativeai as genai
+from google import genai
 from .basellm import HfBaseLLM, GeminiBaseLLM
 from .prompts import *
 import os
@@ -36,14 +36,15 @@ class GenLLM(HfBaseLLM):
         self.config = {
             "model": model,
             "messages": messages,
-            "temperature": kwargs['temperature'],
-            "top_p": kwargs['top_p'],
-            "max_completion_tokens": kwargs['max_token'], 
-            "tools": kwargs['tools'] or None,
-            "tool_choice": kwargs['tool_choice'] or None,
+            "temperature": kwargs["temperature"],
+            "top_p": kwargs["top_p"],
+            "max_completion_tokens": kwargs["max_token"],
+            "tools": kwargs["tools"] or None,
+            "tool_choice": kwargs["tool_choice"] or None,
         }
 
         return self.client.chat.completions.create(**self.config)
+
 
 class OptimLLM(HfBaseLLM):
     def __init__(self):
@@ -54,11 +55,11 @@ class OptimLLM(HfBaseLLM):
         self.config = {
             "model": model,
             "messages": messages,
-            "temperature": kwargs['temperature'],
-            "top_p": kwargs['top_p'],
-            "max_completion_tokens": kwargs['max_token'], 
-            "tools": kwargs['tools'] or None,
-            "tool_choice": kwargs['tool_choice'] or None,
+            "temperature": kwargs["temperature"],
+            "top_p": kwargs["top_p"],
+            "max_completion_tokens": kwargs["max_token"],
+            "tools": kwargs["tools"] or None,
+            "tool_choice": kwargs["tool_choice"] or None,
         }
 
         return self.client.chat.completions.create(**self.config)
@@ -70,14 +71,14 @@ class AICriticLLM(HfBaseLLM):
 
     def generate(self, model, messages, **kwargs):
 
-        self.config = {
-            "model": model,
+        self.config |= {
+            "model": model or self.model,
             "messages": messages,
-            "temperature": kwargs['temperature'],
-            "top_p": kwargs['top_p'],
-            "max_completion_tokens": kwargs['max_token'], 
-            "tools": kwargs['tools'] or None,
-            "tool_choice": kwargs['tool_choice'] or None,
+            "temperature": kwargs["temperature"],
+            "top_p": kwargs["top_p"],
+            "max_completion_tokens": kwargs["max_token"],
+            "tools": kwargs["tools"] or None,
+            "tool_choice": kwargs["tool_choice"] or None,
         }
 
         return self.client.chat.completions.create(**self.config)
@@ -89,20 +90,19 @@ class GeminiLLM(GeminiBaseLLM):
 
     def generate(self, model, messages, **kwargs):
 
-        self.config = {
-            "model": model,
-            "messages": messages,
-            "temperature": kwargs['temperature'],
-            "top_p": kwargs['top_p'],
-            "max_completion_tokens": kwargs['max_token'], 
-            "tools": kwargs['tools'] or None,
-            "tool_choice": kwargs['tool_choice'] or None,
+        self.config |= {
+            "temperature": kwargs["temperature"],
+            "top_p": kwargs["top_p"],
+            "top_k": kwargs["top_k"],
+            "max_output_tokens": kwargs["max_token"],
+            "response_mime_type": "text/plain",
         }
-        model = genai.GenerativeModel("gemini-1.5-flash")
 
-        genai.GenerationConfig()
-
-        return model.generate_content("Explain how AI works")
+        return self.client.model.generate_content(
+            model or self.model,
+            content=messages,
+            config=genai.GenerateContentConfig(**self.config),
+        )
 
 
 if __name__ == "__main__":

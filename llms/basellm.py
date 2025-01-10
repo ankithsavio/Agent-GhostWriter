@@ -1,5 +1,6 @@
 from openai import OpenAI
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 import os
@@ -20,7 +21,7 @@ class HfBaseLLM:
             "messages": None,
             "temperature": None,
             "top_p": None,
-            "max_completion_tokens": None, 
+            "max_completion_tokens": None,
             "tools": None,
             "tool_choice": None,
         }
@@ -32,16 +33,16 @@ class HfBaseLLM:
 class GeminiBaseLLM:
     def __init__(self, system_prompt):
         self.system_prompt = system_prompt
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY", None))
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", None))
+        self.model = "gemini-1.5-flash-002"
+        self.large_model = "gemini-exp-1206"
         self.config = {
-            "temperature": 1,
-            "top_p": 0.95,
-            "top_k": 64,
-            "max_output_tokens": 8192,
+            "temperature": None,
+            "top_p": None,
+            "top_k": None,
+            "max_output_tokens": None,
             "response_mime_type": "text/plain",
         }
-        self.model = genai.GenerativeModel("gemini-1.5-flash-002", generation_config= self.config)
-        self.large_model = genai.GenerativeModel("gemini-exp-1206", generation_config= self.config) # needs testing
 
     def generate(self):
         raise NotImplementedError
