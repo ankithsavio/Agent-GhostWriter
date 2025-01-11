@@ -35,8 +35,8 @@ LATEX_COVER_LETTER_TEMPLATE = """
 \\end{{minipage}}
 
 \\recipient{{Dear \\recipientName,}}{{}}  % Use the command here
-\\opening{{\\vspace*{-2em}}}
-\\closing{{Sincerely,}}{{\\vspace*{-2em}}}  
+\\opening{{\\vspace*{{-2em}}}}
+\\closing{{Sincerely,}}{{\\vspace*{{-2em}}}}  
 \\makelettertitle
 \\justifying
 
