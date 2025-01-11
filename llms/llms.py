@@ -1,28 +1,4 @@
-# from openai import OpenAI
-
-# client = OpenAI(
-# 	base_url="https://api-inference.huggingface.co/v1/",
-# 	api_key="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-# )
-
-# messages = [
-# 	{
-# 		"role": "user",
-# 		"content": "What is the capital of France?"
-# 	}
-# ]
-
-# completion = client.chat.completions.create(
-#     model="meta-llama/Llama-3.3-70B-Instruct",
-# 	messages=messages,
-# 	max_tokens=500
-# )
-
-# print(completion.choices[0].message)
-
 from openai import OpenAI
-from google import genai
-from google.genai import types
 from .basellm import HfBaseLLM, GeminiBaseLLM
 from .prompts import *
 import os

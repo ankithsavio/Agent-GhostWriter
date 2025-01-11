@@ -9,6 +9,10 @@ load_dotenv("./.env")
 
 
 class HfBaseLLM:
+    """
+    Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
+    """
+
     def __init__(self, system_prompt):
         self.system_prompt = system_prompt
         self.client = OpenAI(
@@ -31,6 +35,10 @@ class HfBaseLLM:
 
 
 class GeminiBaseLLM:
+    """
+    Base Gemini Wrapper for gemini-1.5 flash and pro models. Uses OpenAI Client using gemini inference base url.
+    """
+
     def __init__(self, system_prompt):
         self.system_prompt = system_prompt
         self.client = OpenAI(
@@ -54,6 +62,10 @@ class GeminiBaseLLM:
 
 
 class GeminiMultiModalBaseLLM:
+    """
+    Base MultiModal Gemini Wrapper for Genai Pyton SDK. WIP.
+    """
+
     def __init__(self, system_prompt):
         self.system_prompt = system_prompt
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", None))
