@@ -22,6 +22,7 @@
 
 from openai import OpenAI
 from google import genai
+from google.genai import types
 from .basellm import HfBaseLLM, GeminiBaseLLM
 from .prompts import *
 import os
@@ -36,14 +37,21 @@ class GenLLM(HfBaseLLM):
         self.config = {
             "model": model,
             "messages": messages,
-            "temperature": kwargs["temperature"],
-            "top_p": kwargs["top_p"],
-            "max_completion_tokens": kwargs["max_token"],
-            "tools": kwargs["tools"] or None,
-            "tool_choice": kwargs["tool_choice"] or None,
+            "temperature": kwargs.get("temperature", None),
+            "top_p": kwargs.get("top_p", None),
+            "max_completion_tokens": kwargs.get("max_token", None),
+            "tools": kwargs.get("tools", None),
+            "tool_choice": kwargs.get("tool_choice", None),
         }
 
         return self.client.chat.completions.create(**self.config)
+
+    def __call__(self, user_message):
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        return self.generate(self.model, message)
 
 
 class OptimLLM(HfBaseLLM):
@@ -52,17 +60,24 @@ class OptimLLM(HfBaseLLM):
 
     def generate(self, model, messages, **kwargs):
 
-        self.config = {
+        self.config |= {
             "model": model,
             "messages": messages,
-            "temperature": kwargs["temperature"],
-            "top_p": kwargs["top_p"],
-            "max_completion_tokens": kwargs["max_token"],
-            "tools": kwargs["tools"] or None,
-            "tool_choice": kwargs["tool_choice"] or None,
+            "temperature": kwargs.get("temperature", None),
+            "top_p": kwargs.get("top_p", None),
+            "max_completion_tokens": kwargs.get("max_token", None),
+            "tools": kwargs.get("tools", None),
+            "tool_choice": kwargs.get("tool_choice", None),
         }
 
         return self.client.chat.completions.create(**self.config)
+
+    def __call__(self, user_message):
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        return self.generate(self.model, message)
 
 
 class AICriticLLM(HfBaseLLM):
@@ -72,16 +87,23 @@ class AICriticLLM(HfBaseLLM):
     def generate(self, model, messages, **kwargs):
 
         self.config |= {
-            "model": model or self.model,
+            "model": model,
             "messages": messages,
-            "temperature": kwargs["temperature"],
-            "top_p": kwargs["top_p"],
-            "max_completion_tokens": kwargs["max_token"],
-            "tools": kwargs["tools"] or None,
-            "tool_choice": kwargs["tool_choice"] or None,
+            "temperature": kwargs.get("temperature", None),
+            "top_p": kwargs.get("top_p", None),
+            "max_completion_tokens": kwargs.get("max_token", None),
+            "tools": kwargs.get("tools", None),
+            "tool_choice": kwargs.get("tool_choice", None),
         }
 
         return self.client.chat.completions.create(**self.config)
+
+    def __call__(self, user_message):
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        return self.generate(self.model, message)
 
 
 class GeminiLLM(GeminiBaseLLM):
@@ -91,18 +113,23 @@ class GeminiLLM(GeminiBaseLLM):
     def generate(self, model, messages, **kwargs):
 
         self.config |= {
-            "temperature": kwargs["temperature"],
-            "top_p": kwargs["top_p"],
-            "top_k": kwargs["top_k"],
-            "max_output_tokens": kwargs["max_token"],
-            "response_mime_type": "text/plain",
+            "model": model,
+            "messages": messages,
+            "temperature": kwargs.get("temperature", None),
+            "top_p": kwargs.get("top_p", None),
+            "max_completion_tokens": kwargs.get("max_token", None),
+            "tools": kwargs.get("tools", None),
+            "tool_choice": kwargs.get("tool_choice", None),
         }
 
-        return self.client.model.generate_content(
-            model or self.model,
-            content=messages,
-            config=genai.GenerateContentConfig(**self.config),
-        )
+        return self.client.chat.completions.create(**self.config)
+
+    def __call__(self, user_message):
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        return self.generate(self.model, message)
 
 
 if __name__ == "__main__":

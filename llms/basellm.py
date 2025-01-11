@@ -33,6 +33,29 @@ class HfBaseLLM:
 class GeminiBaseLLM:
     def __init__(self, system_prompt):
         self.system_prompt = system_prompt
+        self.client = OpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=os.getenv("GEMINI_API_KEY", None),
+        )
+        self.model = "gemini-1.5-flash-002"
+        self.large_model = "gemini-1.5-pro"
+        self.config = {
+            "model": self.model,
+            "messages": None,
+            "temperature": None,
+            "top_p": None,
+            "max_completion_tokens": None,
+            "tools": None,
+            "tool_choice": None,
+        }
+
+    def generate(self):
+        raise NotImplementedError
+
+
+class GeminiMultiModalBaseLLM:
+    def __init__(self, system_prompt):
+        self.system_prompt = system_prompt
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", None))
         self.model = "gemini-1.5-flash-002"
         self.large_model = "gemini-exp-1206"
