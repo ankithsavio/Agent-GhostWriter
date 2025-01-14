@@ -2,7 +2,7 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
-
+from typing import List, Dict
 import os
 
 load_dotenv("./.env")
@@ -30,8 +30,23 @@ class HfBaseLLM:
             "tool_choice": None,
         }
 
-    def generate(self):
-        raise NotImplementedError
+    def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
+
+        self.config |= {
+            "model": model or self.model,
+            "messages": messages,
+            **kwargs,
+        }
+
+        return self.client.chat.completions.create(**self.config)
+
+    def __call__(self, **kwargs):
+        prompt = self.prompt_template(**kwargs)
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        return self.generate(self.model, message).choices[0].message.content
 
 
 class GeminiBaseLLM:
@@ -45,7 +60,7 @@ class GeminiBaseLLM:
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
-        self.model = "gemini-1.5-flash-002"
+        self.model = "gemini-2.0-flash-exp"
         self.large_model = "gemini-1.5-pro"
         self.config = {
             "model": self.model,
@@ -57,8 +72,23 @@ class GeminiBaseLLM:
             "tool_choice": None,
         }
 
-    def generate(self):
-        raise NotImplementedError
+    def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
+
+        self.config |= {
+            "model": model or self.model,
+            "messages": messages,
+            **kwargs,
+        }
+
+        return self.client.chat.completions.create(**self.config)
+
+    def __call__(self, **kwargs):
+        prompt = self.prompt_template(**kwargs)
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        return self.generate(self.model, message).choices[0].message.content
 
 
 class GeminiMultiModalBaseLLM:
@@ -72,6 +102,7 @@ class GeminiMultiModalBaseLLM:
         self.model = "gemini-1.5-flash-002"
         self.large_model = "gemini-exp-1206"
         self.config = {
+            "system_instruction": self.system_prompt,
             "temperature": None,
             "top_p": None,
             "top_k": None,

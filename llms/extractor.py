@@ -11,13 +11,7 @@ class PDFExtractor(GeminiMultiModalBaseLLM):
         super().__init__(system_prompt=GEMINI_MULTIMODAL_EXTRACTOR_PROMPT)
 
     def generate(self, model, file_part, **kwargs):
-        self.config |= {
-            "system_instruction": self.system_prompt,
-            "temperature": kwargs.get("temperature", None),
-            "top_p": kwargs.get("top_p", None),
-            "top_k": kwargs.get("top_k", None),
-            "max_output_tokens": kwargs.get("max_token", None),
-        }
+        self.config |= {**kwargs}
 
         return self.client.models.generate_content(
             model=model or self.model,
@@ -37,4 +31,4 @@ class PDFExtractor(GeminiMultiModalBaseLLM):
             mime_type="application/pdf",
         )
 
-        return self.generate(self.model, file_part)
+        return self.generate(self.model, file_part).candidates[0].content.parts[0].text
