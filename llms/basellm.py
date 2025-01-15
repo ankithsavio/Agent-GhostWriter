@@ -15,6 +15,7 @@ class HfBaseLLM:
 
     def __init__(self, system_prompt):
         self.system_prompt = system_prompt
+        self.prompt_template = ""
         self.client = OpenAI(
             base_url="https://api-inference.huggingface.co/v1/",
             api_key=os.getenv("HF_TOKEN", None),
@@ -41,7 +42,7 @@ class HfBaseLLM:
         return self.client.chat.completions.create(**self.config)
 
     def __call__(self, **kwargs):
-        prompt = self.prompt_template(**kwargs)
+        prompt = self.prompt_template.format(**kwargs)
         message = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
@@ -56,6 +57,7 @@ class GeminiBaseLLM:
 
     def __init__(self, system_prompt):
         self.system_prompt = system_prompt
+        self.prompt_template = ""
         self.client = OpenAI(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=os.getenv("GEMINI_API_KEY", None),
@@ -83,7 +85,7 @@ class GeminiBaseLLM:
         return self.client.chat.completions.create(**self.config)
 
     def __call__(self, **kwargs):
-        prompt = self.prompt_template(**kwargs)
+        prompt = self.prompt_template.format(**kwargs)
         message = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
