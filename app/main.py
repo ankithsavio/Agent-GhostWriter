@@ -1,13 +1,8 @@
 import streamlit as st
-import PyPDF2
-import io
 from typing import List, Dict
-import time
-import html
 from dataclasses import dataclass
 from typing import List, Optional
 import os
-from llms import PDFExtractor
 from cover_letter_writer.utils.data import AgentMessage
 from cover_letter_writer.engine import CoverLetterWriterEngine
 import shutil
@@ -99,65 +94,8 @@ def display_conversation_bubble(bubble: ConversationBubble):
         st.markdown("</div>", unsafe_allow_html=True)
 
 
-def create_analysis_bubble(
-    job_description: str, resume_text: str
-) -> ConversationBubble:
-    return ConversationBubble(
-        title="Analysis Phase",
-        description="Analyzing job requirements and candidate qualifications",
-        messages=[
-            AgentMessage(
-                "Job Analyzer",
-                "I've analyzed the job description. The role requires expertise in Python programming and data analysis. The company is looking for someone with strong communication skills.",
-            ),
-            AgentMessage(
-                "Resume Analyzer",
-                "Based on the resume, the candidate has 3 years of Python experience and has worked on several data analysis projects. They've also led team presentations.",
-            ),
-            AgentMessage(
-                "Matcher",
-                "There's a strong match between the job requirements and the candidate's qualifications. Key matching points: Python skills, data analysis experience, and communication abilities.",
-            ),
-        ],
-    )
-
-def create_writing_bubble() -> ConversationBubble:
-    return ConversationBubble(
-        title="Writing Phase",
-        description="Drafting and refining the cover letter",
-        messages=[
-            AgentMessage(
-                "Cover Letter Writer",
-                "I'll draft a cover letter emphasizing these matching points and highlighting relevant project experiences.",
-            )
-        ],
-        background_color="#2A4858",
-        border_color="#3A5868",
-    )
-
-def create_editing_bubble() -> ConversationBubble:
-    return ConversationBubble(
-        title="Editing Phase",
-        description="Final review and polishing",
-        messages=[
-            AgentMessage(
-                "Editor",
-                "I've reviewed and polished the cover letter, ensuring it maintains a professional tone while showcasing the candidate's enthusiasm and qualifications.",
-            )
-        ],
-        background_color="#2A584A",
-        border_color="#3A685A",
-    )
-
-def extract_text_from_pdf(pdf_file) -> str:
-    pdf_reader = PyPDF2.PdfReader(pdf_file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
-
 def main():
-    temp_dir = "/mnt/c/Users/ankit/Desktop/Portfolio/automation/Agent-GhostWriter/temp"
+    temp_dir = "./temp"
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     os.makedirs(temp_dir, exist_ok=True)
@@ -179,7 +117,6 @@ def main():
         st.subheader("Resume")
         uploaded_file = st.file_uploader("Upload your resume (PDF)", type="pdf")
         if uploaded_file is not None:
-            resume_text = extract_text_from_pdf(uploaded_file)
             st.success("Resume uploaded successfully!")
             resume_file_path = os.path.join(
                 temp_dir,
@@ -193,7 +130,6 @@ def main():
             "Upload your cover letter (PDF)", type="pdf"
         )
         if uploaded_cover_letter is not None:
-            cover_letter_text = extract_text_from_pdf(uploaded_cover_letter)
             st.success("Cover letter uploaded successfully!")
             letter_file_path = os.path.join(
                 temp_dir,
@@ -202,7 +138,7 @@ def main():
             with open(letter_file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
-    if st.button("Generate Cover Letter") and job_description and resume_text:
+    if st.button("Generate Cover Letter") and job_description:
         with st.spinner("Agents are analyzing and generating your cover letter..."):
             engine = CoverLetterWriterEngine(
                 job_description=job_description,
@@ -259,7 +195,7 @@ def main():
                     mime="text/plain",
                 )
 
-    with st.expander("How to use this tool"):
+    with st.expander("How to use this app"):
         st.write(
             """
         1. Paste the job description in the text area
@@ -270,6 +206,7 @@ def main():
         6. Download the generated cover letter in txt file
         """
         )
+
 
 if __name__ == "__main__":
     main()
