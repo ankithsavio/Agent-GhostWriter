@@ -13,7 +13,7 @@ from .utils.prompts import (
 )
 
 
-class JobExtractorWorker(HfBaseLLM):
+class JobExtractorWorker(GeminiBaseLLM):
     def __init__(self):
         super().__init__(system_prompt=JOB_EXTRACTOR_PROMPT)
         self.prompt_template = JOB_EXTRACTOR_USER_PROMPT

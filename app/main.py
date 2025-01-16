@@ -1,7 +1,7 @@
 import streamlit as st
-from typing import List, Dict
+from typing import List
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 import os
 from cover_letter_writer.utils.data import AgentMessage
 from cover_letter_writer.engine import CoverLetterWriterEngine
@@ -95,7 +95,7 @@ def display_conversation_bubble(bubble: ConversationBubble):
 
 
 def main():
-    temp_dir = "./temp"
+    temp_dir = "./temp/"
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     os.makedirs(temp_dir, exist_ok=True)
