@@ -6,12 +6,11 @@ import time
 import html
 from dataclasses import dataclass
 from typing import List, Optional
-
-
-@dataclass
-class AgentMessage:
-    agent: str
-    message: str
+import os
+from llms import PDFExtractor
+from cover_letter_writer.utils.data import AgentMessage
+from cover_letter_writer.engine import CoverLetterWriterEngine
+import shutil
 
 
 @dataclass
@@ -21,17 +20,6 @@ class ConversationBubble:
     messages: List[AgentMessage]
     background_color: str = "#2E4B7A"
     border_color: str = "#3E5B8A"
-
-
-def get_agent_icon(agent_name: str) -> str:
-    icons = {
-        "Job Analyzer": "🤖",
-        "Resume Analyzer": "🦾",
-        "Matcher": "🧠",
-        "Cover Letter Writer": "✍️",
-        "Editor": "📝",
-    }
-    return icons.get(agent_name, "🤖")
 
 
 def display_conversation_bubble(bubble: ConversationBubble):
@@ -91,14 +79,17 @@ def display_conversation_bubble(bubble: ConversationBubble):
         )
 
         for msg in bubble.messages:
-            icon = get_agent_icon(msg.agent)
+            icon = "🤖"
+            message_content = msg.message.replace(
+                "\n", "<br>"
+            )  # Replace newlines with HTML line breaks
             st.markdown(
                 f"""
                 <div class="message-container">
                     <div class="icon-container">{icon}</div>
                     <div class="message-content">
                         <div class="agent-name" style="color: #E0E0E0;">{msg.agent}</div>
-                        <div style="color: #FFFFFF;">{msg.message}</div>
+                        <div style="color: #FFFFFF;">{message_content}</div>
                     </div>
                 </div>
                 """,
@@ -130,7 +121,6 @@ def create_analysis_bubble(
         ],
     )
 
-
 def create_writing_bubble() -> ConversationBubble:
     return ConversationBubble(
         title="Writing Phase",
@@ -144,7 +134,6 @@ def create_writing_bubble() -> ConversationBubble:
         background_color="#2A4858",
         border_color="#3A5868",
     )
-
 
 def create_editing_bubble() -> ConversationBubble:
     return ConversationBubble(
@@ -160,7 +149,6 @@ def create_editing_bubble() -> ConversationBubble:
         border_color="#3A685A",
     )
 
-
 def extract_text_from_pdf(pdf_file) -> str:
     pdf_reader = PyPDF2.PdfReader(pdf_file)
     text = ""
@@ -168,8 +156,12 @@ def extract_text_from_pdf(pdf_file) -> str:
         text += page.extract_text()
     return text
 
-
 def main():
+    temp_dir = "/mnt/c/Users/ankit/Desktop/Portfolio/automation/Agent-GhostWriter/temp"
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+    os.makedirs(temp_dir, exist_ok=True)
+
     st.title("AI Cover Letter Generator")
     st.write("Generate personalized cover letters using AI agents")
 
@@ -186,63 +178,83 @@ def main():
     with col2:
         st.subheader("Resume")
         uploaded_file = st.file_uploader("Upload your resume (PDF)", type="pdf")
-        resume_text = ""
         if uploaded_file is not None:
             resume_text = extract_text_from_pdf(uploaded_file)
             st.success("Resume uploaded successfully!")
+            resume_file_path = os.path.join(
+                temp_dir,
+                uploaded_file.name,
+            )
+            with open(resume_file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+
+        st.subheader("Cover Letter")
+        uploaded_cover_letter = st.file_uploader(
+            "Upload your cover letter (PDF)", type="pdf"
+        )
+        if uploaded_cover_letter is not None:
+            cover_letter_text = extract_text_from_pdf(uploaded_cover_letter)
+            st.success("Cover letter uploaded successfully!")
+            letter_file_path = os.path.join(
+                temp_dir,
+                uploaded_file.name,
+            )
+            with open(letter_file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
 
     if st.button("Generate Cover Letter") and job_description and resume_text:
         with st.spinner("Agents are analyzing and generating your cover letter..."):
+            engine = CoverLetterWriterEngine(
+                job_description=job_description,
+                path_to_resume=resume_file_path,
+                path_to_cover_letter=letter_file_path,
+            )
+
             tab1, tab2 = st.tabs(["Agent Conversation", "Generated Cover Letter"])
 
             with tab1:
                 st.subheader("Agent Conversation")
-
-                analysis_bubble = create_analysis_bubble(job_description, resume_text)
-                writing_bubble = create_writing_bubble()
-                editing_bubble = create_editing_bubble()
-
-                display_conversation_bubble(analysis_bubble)
-                time.sleep(2)
-                display_conversation_bubble(writing_bubble)
-                time.sleep(2)
-                display_conversation_bubble(editing_bubble)
+                job_insights = engine.get_job_insights()
+                display_conversation_bubble(
+                    ConversationBubble(
+                        "Job Insights",
+                        "Extract detailed information from the description",
+                        job_insights,
+                    )
+                )
+                resume_insights = engine.get_resume_insights()
+                display_conversation_bubble(
+                    ConversationBubble(
+                        "Resume Insights",
+                        "Extract insights from the resume tailored to the job description",
+                        resume_insights,
+                    )
+                )
+                draft_cover_letter = engine.get_cover_letter_draft()
+                display_conversation_bubble(
+                    ConversationBubble(
+                        "Draft Generation",
+                        "Generate draft based on resume and job insights",
+                        draft_cover_letter,
+                    )
+                )
+                final_cover_letter = engine.get_final_cover_letter()
+                display_conversation_bubble(
+                    ConversationBubble(
+                        "Cover Letter Generation",
+                        "Generate final cover letter based on draft and tailored critic",
+                        final_cover_letter,
+                    )
+                )
 
             with tab2:
                 st.subheader("Final Cover Letter")
-                sample_cover_letter = """[Your Name]
-                [Your Address]
-                [Your Phone Number]
-                [Your Email Address]
-
-                October 26, 2023
-
-                Atla
-                [Atla's Address, if known]
-
-                Dear Hiring Manager,
-
-                I am writing to express my profound enthusiasm for the Machine Learning Engineer position at Atla, as advertised on [Platform where you saw the ad]. The opportunity to contribute to the scaling of fine-tuning and inference frameworks for large language models at a company like Atla, which is at the forefront of this exciting field, is incredibly compelling. My background, encompassing a robust academic foundation and practical experience, aligns perfectly with the requirements of this role, and I am confident that I can make significant contributions to your team.
-
-                My Master's degree in AI and Machine Learning with Distinction from the University of Birmingham, combined with my Bachelor's in Computer Science, has provided me with a deep understanding of the theoretical underpinnings and practical applications of AI. During my internship as an AI/ML Intern at Nethermind, I took the initiative to develop an evaluation framework for AI agents and spearheaded the development of a video analysis tool leveraging cutting-edge technologies such as VideoLLaMA2, OpenAI Whisper, and Llama 3. This experience demonstrates my capability to develop advanced AI solutions from concept to implementation, very similar to the challenges of building an automated fine-tuning framework for large language models that Atla is currently focused on.
-
-                My proficiency extends to a wide array of programming languages, including Python, C++, and SQL, along with deep learning frameworks like PyTorch, TensorFlow, and JAX. While I haven't directly managed multi-instance clusters for parallel training across GPUs/TPUs using Kubernetes, my project "Generative Accumulation of Photons for Inverse Problems," where I used distributed training across two T4 GPUs, demonstrates my capability in scaling machine learning models. I am also comfortable with data manipulation libraries like NumPy and Pandas, and am adept at model development using tools like HuggingFace, all of which are crucial for success in this role. Although my experience with specific orchestration systems like SLURM or Ray isn’t directly stated, my experience with containerization (Docker and Kubernetes), coupled with my distributed training knowledge, signifies an ability to adopt related technologies easily. 
-
-                My projects, including "Brain MRI Segmentation" and "Indian Vehicle Number Plate Recognition," showcase my ability to apply diverse machine learning techniques, including transfer learning, optimization, object detection, and character recognition. The optimization work on my Brain MRI Segmentation indicates a solid foundation applicable to techniques like quantization. This wide range of experience, combined with my commitment to staying at the forefront of AI research as demonstrated by my participation in the Oxford Machine Learning Summer School and obtaining certifications in TensorFlow and Deep Learning, further reinforces my ability to develop and maintain a robust inference platform.
-
-                Furthermore, my experience collaborating in various team environments, such as during my Data Analyst Internship and while leading the development of TruthTok's video analysis tool, demonstrates my ability to work effectively within a team and contribute to a collaborative environment. I am a strong communicator and am highly adaptable to new environments and workflows. While not explicitly described, my collaborative work and leadership in projects indicates my potential to guide and contribute to team efforts, and my experience with RESTful APIs shows I understand API design, implementation, and integration which would be useful to Atla.
-
-                I am genuinely excited by the opportunity to contribute my skills and passion to Atla's mission. I am confident that my skills, experiences, and the demonstrated transferable skills highlighted above make me an ideal candidate for this position. I am eager to learn more about this opportunity and discuss how I can help Atla achieve its goals. Thank you for your time and consideration.
-
-                Sincerely,
-
-                Ankith Savio Arogya Dass
-                """
-                st.write(sample_cover_letter)
+                cover_letter = engine.final_letter
+                st.write(cover_letter)
 
                 st.download_button(
                     label="Download Cover Letter",
-                    data=sample_cover_letter,
+                    data=cover_letter,
                     file_name="cover_letter.txt",
                     mime="text/plain",
                 )
@@ -252,12 +264,12 @@ def main():
             """
         1. Paste the job description in the text area
         2. Upload your resume in PDF format
-        3. Click 'Generate Cover Letter' to start the process
-        4. Watch as our AI agents analyze and create your cover letter
-        5. Download the generated cover letter
+        3. Upload your cover letter in PDF format
+        4. Click 'Generate Cover Letter' to start the process
+        5. Watch as our AI agents analyze and create your cover letter
+        6. Download the generated cover letter in txt file
         """
         )
-
 
 if __name__ == "__main__":
     main()

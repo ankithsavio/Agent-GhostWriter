@@ -16,6 +16,7 @@ from .utils.prompts import (
 from .utils.test import JOB_DESC, RESUME_PATH, COVER_LETTER_PATH
 from pprint import pprint
 import os
+from .utils.data import AgentMessage
 
 
 class CoverLetterWriterEngine:
@@ -52,23 +53,32 @@ class CoverLetterWriterEngine:
         logger.debug(f"Resume :\n{text}")
         return text
 
+    def get_job_insights(self):
+        messages = [AgentMessage("Job Insights", self.job_insights)]
+        return messages
+
     def get_resume_insights(self, iter: int = 2):
         insight_generator = self.generator(RESUME_GEN_PROMPT)
         insight_evaluator = self.evaluator(RESUME_EVAL_PROMPT)
+        messages = []
         conversation = ""
         response = ""
         for _ in range(iter):
             response = insight_generator(Resume=self.text_resume, Feedback=response)
             conversation += f"\nInsights :\n{response}"
+            messages.append(AgentMessage("Insight Gen", response))
             response = insight_evaluator(
                 Job_Description=self.job_insights, Insights=response
             )
             conversation += f"\nFeedback :\n{response}"
+            messages.append(AgentMessage("Insight Eval", response))
 
         self.resume_insights = self.summarizer_worker(Conversation=conversation)
+        messages.append(AgentMessage("Final Resume Insights", self.resume_insights))
         logger.debug(f"Insight optimization conversation: \n{conversation}")
         logger.debug(f"Resume insights generated: \n{self.resume_insights}")
         logger.info(f"Resume insights derived")
+        return messages
 
     def generate_init_draft(self):
         draft_cover_letter = self.draft_worker(
@@ -81,19 +91,39 @@ class CoverLetterWriterEngine:
     def get_cover_letter_draft(self, iter: int = 2):
         draft_generator = self.generator(COVER_LETTER_GEN_PROMPT)
         draft_evaluator = self.evaluator(COVER_LETTER_EVAL_PROMPT)
+        messages = []
         conversation = ""
         response = self.generate_init_draft()
+        messages.append(AgentMessage("Draft Gen", response))
         for _ in range(iter):
             feedback = draft_evaluator(
                 previous_cover_letter=self.prev_cover_letter,
                 draft_cover_letter=response,
             )
             conversation += f"\nFeedback :\n{feedback}"
+            messages.append(AgentMessage("Draft Eval", feedback))
             response = draft_generator(draft_cover_letter=response, feedback=feedback)
             conversation += f"\nNew Draft :\n{response}"
+            messages.append(AgentMessage("Draft Gen", response))
+        self.final_draft_letter = response
+        messages.append(AgentMessage("Final Draft", self.final_draft_letter))
         logger.debug(f"Draft optimization conversation: \n{conversation}")
         logger.info(f"Final draft derived")
-        return response
+        return messages
+
+    def get_final_cover_letter(self):
+        messages = []
+        critic_response = self.critic_worker(cover_letter=self.final_draft_letter)
+        messages.append(AgentMessage("AI Critic", critic_response))
+        self.final_letter = self.final_writer_worker(
+            cover_letter=self.final_draft_letter, critic=critic_response
+        )
+        messages.append(AgentMessage("Final Letter", self.final_letter))
+        logger.debug(f"Draft Critic: \n{critic_response}")
+        logger.debug(f"Final Cover Letter : \n{self.final_letter}")
+        logger.info(f"Final Cover Letter Generated")
+
+        return messages
 
     def run(self):
         self.get_resume_insights(2)
