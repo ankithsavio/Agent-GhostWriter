@@ -1,13 +1,8 @@
 import streamlit as st
-import PyPDF2
-import io
-from typing import List, Dict
-import time
-import html
+from typing import List
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 import os
-from llms import PDFExtractor
 from cover_letter_writer.utils.data import AgentMessage
 from cover_letter_writer.engine import CoverLetterWriterEngine
 import shutil
@@ -122,7 +117,6 @@ def main():
         st.subheader("Resume")
         uploaded_file = st.file_uploader("Upload your resume (PDF)", type="pdf")
         if uploaded_file is not None:
-            resume_text = extract_text_from_pdf(uploaded_file)
             st.success("Resume uploaded successfully!")
             resume_file_path = os.path.join(
                 temp_dir,
@@ -136,7 +130,6 @@ def main():
             "Upload your cover letter (PDF)", type="pdf"
         )
         if uploaded_cover_letter is not None:
-            cover_letter_text = extract_text_from_pdf(uploaded_cover_letter)
             st.success("Cover letter uploaded successfully!")
             letter_file_path = os.path.join(
                 temp_dir,
@@ -145,7 +138,7 @@ def main():
             with open(letter_file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
-    if st.button("Generate Cover Letter") and job_description and resume_text:
+    if st.button("Generate Cover Letter") and job_description:
         with st.spinner("Agents are analyzing and generating your cover letter..."):
             engine = CoverLetterWriterEngine(
                 job_description=job_description,
