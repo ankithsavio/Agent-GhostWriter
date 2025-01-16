@@ -16,6 +16,7 @@
 
 3. Configure API keys in a `.env` file:
    ```env
+   HF_API_KEY=your_huggingface_api_key
    GEMINI_API_KEY=your_gemini_api_key
    ```
 
