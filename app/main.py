@@ -121,6 +121,7 @@ def create_analysis_bubble(
         ],
     )
 
+
 def create_writing_bubble() -> ConversationBubble:
     return ConversationBubble(
         title="Writing Phase",
@@ -134,6 +135,7 @@ def create_writing_bubble() -> ConversationBubble:
         background_color="#2A4858",
         border_color="#3A5868",
     )
+
 
 def create_editing_bubble() -> ConversationBubble:
     return ConversationBubble(
@@ -149,12 +151,14 @@ def create_editing_bubble() -> ConversationBubble:
         border_color="#3A685A",
     )
 
+
 def extract_text_from_pdf(pdf_file) -> str:
     pdf_reader = PyPDF2.PdfReader(pdf_file)
     text = ""
     for page in pdf_reader.pages:
         text += page.extract_text()
     return text
+
 
 def main():
     temp_dir = "/mnt/c/Users/ankit/Desktop/Portfolio/automation/Agent-GhostWriter/temp"
@@ -270,6 +274,7 @@ def main():
         6. Download the generated cover letter in txt file
         """
         )
+
 
 if __name__ == "__main__":
     main()
