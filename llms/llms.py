@@ -2,21 +2,15 @@ from .basellm import HfBaseLLM, GeminiBaseLLM
 from .prompts import GEN_PROMPT, EVAL_PROMPT, AI_CRITIC_PROMPT, GEMINI_GEN_PROMPT
 
 
-class GenLLM(GeminiBaseLLM):
+class GenLLM(HfBaseLLM):
     def __init__(self, user_prompt_template):
         super().__init__(system_prompt=GEN_PROMPT)
         self.prompt_template = user_prompt_template
 
 
-class OptimLLM(GeminiBaseLLM):
+class OptimLLM(HfBaseLLM):
     def __init__(self, user_prompt_template):
         super().__init__(system_prompt=EVAL_PROMPT)
-        self.prompt_template = user_prompt_template
-
-
-class AICriticLLM(GeminiBaseLLM):
-    def __init__(self, user_prompt_template):
-        super().__init__(system_prompt=AI_CRITIC_PROMPT)
         self.prompt_template = user_prompt_template
 
 
