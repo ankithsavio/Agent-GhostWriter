@@ -27,8 +27,6 @@ class HfBaseLLM:
             "temperature": None,
             "top_p": None,
             "max_completion_tokens": None,
-            "tools": None,
-            "tool_choice": None,
         }
 
     def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
@@ -70,8 +68,6 @@ class GeminiBaseLLM:
             "temperature": None,
             "top_p": None,
             "max_completion_tokens": None,
-            "tools": None,
-            "tool_choice": None,
         }
 
     def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
