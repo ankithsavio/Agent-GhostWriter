@@ -1,7 +1,6 @@
 import streamlit as st
 from typing import List
 from dataclasses import dataclass
-from typing import List
 import os
 from cover_letter_writer.utils.data import AgentMessage
 from cover_letter_writer.engine import CoverLetterWriterEngine
@@ -58,6 +57,12 @@ def display_conversation_bubble(bubble: ConversationBubble):
             font-weight: bold;
             margin-bottom: 0.3rem;
         }
+        .collapsed-content {
+            display: none;
+        }
+        .expanded-content {
+            display: block;
+        }
         </style>
     """,
         unsafe_allow_html=True,
@@ -78,18 +83,24 @@ def display_conversation_bubble(bubble: ConversationBubble):
             message_content = msg.message.replace(
                 "\n", "<br>"
             )  # Replace newlines with HTML line breaks
-            st.markdown(
-                f"""
-                <div class="message-container">
-                    <div class="icon-container">{icon}</div>
-                    <div class="message-content">
-                        <div class="agent-name" style="color: #E0E0E0;">{msg.agent}</div>
-                        <div style="color: #FFFFFF;">{message_content}</div>
+            collapsed_content = " ".join(
+                message_content.split("<br>")[:4]
+            )  # Show first 4 sentences
+
+            with st.expander(f"{msg.agent}"):
+                st.markdown(
+                    f"""
+                    <div class="message-container">
+                        <div class="icon-container">{icon}</div>
+                        <div class="message-content">
+                            <div class="agent-name" style="color: #E0E0E0;">{msg.agent}</div>
+                            <div class="collapsed-content" style="color: #FFFFFF;">{collapsed_content}</div>
+                            <div class="expanded-content" style="color: #FFFFFF;">{message_content}</div>
+                        </div>
                     </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    """,
+                    unsafe_allow_html=True,
+                )
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -109,7 +120,7 @@ def main():
         st.subheader("Job Description")
         job_description = st.text_area(
             "Paste the job description here",
-            height=300,
+            height=550,
             placeholder="Copy and paste the job description...",
         )
 
