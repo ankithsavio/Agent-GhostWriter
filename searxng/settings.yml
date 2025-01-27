@@ -1,3 +1,4 @@
+# searxng settings
 # see https://docs.searxng.org/admin/settings/settings.html#settings-use-default-settings
 use_default_settings: true
 server:
