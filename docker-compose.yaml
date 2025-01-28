@@ -68,6 +68,23 @@ services:
         max-size: "1m"
         max-file: "1"
 
+  mongodb:
+    container_name: mongodb
+    image: mongo:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - mongodb-data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-example}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
 networks:
   searxng:
 
@@ -75,3 +92,4 @@ volumes:
   caddy-data:
   caddy-config:
   valkey-data2:
+  mongodb-data:
