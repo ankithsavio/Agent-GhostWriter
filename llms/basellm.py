@@ -110,3 +110,31 @@ class GeminiMultiModalBaseLLM:
 
     def generate(self):
         raise NotImplementedError
+
+
+class EmbeddingModel:
+    """
+    Base Gemini Wrapper for text-embedding-004 model. Uses OpenAI Client using gemini inference base url.
+    """
+
+    def __init__(self):
+        self.client = OpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=os.getenv("GEMINI_API_KEY", None),
+        )
+        self.model = "text-embedding-004"
+        self.config = {"model": self.model, "input": None}
+
+    def generate(self, model: str, texts: List[Dict[str, str]], **kwargs):
+
+        self.config |= {
+            "model": model or self.model,
+            "input": texts,
+            **kwargs,
+        }
+
+        return self.client.embeddings.create(**self.config)
+
+    def __call__(self, texts: List[str]):
+
+        return [data.embedding for data in self.generate(self.model, texts).data]
