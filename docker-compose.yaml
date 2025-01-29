@@ -16,10 +16,10 @@ services:
     cap_add:
       - NET_BIND_SERVICE
     logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"
+        driver: "json-file"
+        options:
+          max-size: "1m"
+          max-file: "1"
 
   redis:
     container_name: redis
@@ -37,10 +37,10 @@ services:
       - SETUID
       - DAC_OVERRIDE
     logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"
+        driver: "json-file"
+        options:
+          max-size: "1m"
+          max-file: "1"
 
   searxng:
     container_name: searxng
@@ -63,10 +63,10 @@ services:
       - SETGID
       - SETUID
     logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"
+        driver: "json-file"
+        options:
+          max-size: "1m"
+          max-file: "1"
 
   mongodb:
     container_name: mongodb
@@ -80,10 +80,28 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-root}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-example}
     logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"
+        driver: "json-file"
+        options:
+          max-size: "1m"
+          max-file: "1"
+
+  qdrant:
+    container_name: qdrant
+    image: qdrant/qdrant:latest
+    network_mode: host
+    restart: unless-stopped
+    ports:
+      - "6333:6333" 
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    environment:
+      - RUN_MODE=production
+      - QDRANT__GPU__INDEXING=1 
+    logging:
+        driver: "json-file"
+        options:
+          max-size: "1m"
+          max-file: "1"
 
 networks:
   searxng:
@@ -93,3 +111,4 @@ volumes:
   caddy-config:
   valkey-data2:
   mongodb-data:
+  qdrant_storage:
