@@ -92,8 +92,8 @@ services:
     restart: unless-stopped
     ports:
       - "6333:6333" 
-    volumes:
-      - ./qdrant_storage:/qdrant/storage
+    # volumes:
+    #   - ./qdrant_storage:/qdrant/storage
     environment:
       - RUN_MODE=production
       - QDRANT__GPU__INDEXING=1 
@@ -111,4 +111,4 @@ volumes:
   caddy-config:
   valkey-data2:
   mongodb-data:
-  qdrant_storage:
+  # qdrant_storage:

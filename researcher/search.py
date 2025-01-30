@@ -1,3 +1,4 @@
+from typing import List
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import requests
 import asyncio
@@ -5,7 +6,7 @@ from crawl4ai import AsyncWebCrawler
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 
-from ..llms.basellm import EmbeddingModel
+from llms.basellm import EmbeddingModel
 
 
 class SearXNG:
@@ -17,8 +18,8 @@ class SearXNG:
             "language": "en",
         }
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=300,
-            chunk_overlap=50,
+            chunk_size=1000,
+            chunk_overlap=100,
             length_function=len,
         )
 
@@ -33,8 +34,8 @@ class SearXNG:
 
         self.embedding_model = EmbeddingModel()
 
-    def get_urls(self, query):
-        self.params |= {"q": query}
+    def get_urls(self, query, **kwargs):
+        self.params |= {"q": query, **kwargs}
         try:
             response = requests.get(self.instance, params=self.params)
             response.raise_for_status()
@@ -48,21 +49,24 @@ class SearXNG:
         except KeyError as e:
             print(f"Unexpected JSON format: {e}")
 
-    def get_web_content(self, url: str) -> str:
+    def get_web_content(self, urls: List[str]) -> str:
 
         async def _crawl():
             async with AsyncWebCrawler() as crawler:
-                result = await crawler.arun(
-                    url=url,
-                )
+                result = []
+                for url in urls:
+                    res = await crawler.arun(
+                        url=url,
+                    )
+                    result.append(res.markdown)
                 return result
 
         return asyncio.run(_crawl())
 
     def upsert_documents(self, doc):
-        chunks = self.text_splitter(doc)
+        chunks = self.text_splitter.split_text(doc)
         chunks_dict = [{"id": idx, "text": chunk} for idx, chunk in enumerate(chunks)]
-        embeddings = self.embedding_model(chunks)
+        embeddings = self.embedding_model(chunks[:100])
         points = [
             PointStruct(id=doc["id"], vector=embedding, payload={"text": doc["text"]})
             for doc, embedding in zip(chunks_dict, embeddings)
@@ -71,11 +75,11 @@ class SearXNG:
 
     def query_documents(self, query):
         query_emb = self.embedding_model(query)
-        results = self.vectordb.search(
-            collection_name=self.collection_name, query_vector=query_emb, limit=2
+        results = self.vectordb.query_points(
+            collection_name=self.collection_name,
+            query=query_emb[0],
+            with_vectors=False,
+            with_payload=True,
+            limit=5,
         )
-
-        for result in results:
-            print(
-                f"ID: {result.id}, Score: {result.score}, Text: {result.payload['text']}"
-            )
+        return results
