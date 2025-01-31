@@ -87,6 +87,11 @@ class SearXNG:
 
         return hy_document
 
+    def search_web(self, query, **kwargs):
+        urls = self.get_urls(query, **kwargs)
+        docs = self.get_web_content(urls)
+        self.upsert_documents("####".join(docs))
+
     def query_documents(self, query):
         doc_query = self.generate_fake_document(query)
         query_emb = self.embedding_model(doc_query)
@@ -95,6 +100,6 @@ class SearXNG:
             query=query_emb[0],
             with_vectors=False,
             with_payload=True,
-            limit=5,
+            limit=10,
         )
         return results
