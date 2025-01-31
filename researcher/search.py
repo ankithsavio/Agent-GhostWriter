@@ -6,7 +6,7 @@ from crawl4ai import AsyncWebCrawler
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 
-from llms.basellm import EmbeddingModel
+from llms.basellm import EmbeddingModel, HfBaseLLM
 
 
 class SearXNG:
@@ -17,8 +17,9 @@ class SearXNG:
             "categories": "general",
             "language": "en",
         }
+        self.chunk_size = 1000
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
+            chunk_size=self.chunk_size,
             chunk_overlap=100,
             length_function=len,
         )
@@ -33,6 +34,7 @@ class SearXNG:
             )
 
         self.embedding_model = EmbeddingModel()
+        self.llm = HfBaseLLM()
 
     def get_urls(self, query, **kwargs):
         self.params |= {"q": query, **kwargs}
@@ -73,8 +75,21 @@ class SearXNG:
         ]
         self.vectordb.upsert(collection_name=self.collection_name, points=points)
 
+    def generate_fake_document(self, query):
+        """
+        HyDE Approach
+        """
+        prompt = """Given the question '{query}', generate a hypothetical document that \
+        directly answers this question. The document should be detailed and in-depth.the \
+        document size has to be exactly {chunk_size} characters."""
+
+        hy_document = self.llm(prompt.format(query=query, chunk_size=self.chunk_size))
+
+        return hy_document
+
     def query_documents(self, query):
-        query_emb = self.embedding_model(query)
+        doc_query = self.generate_fake_document(query)
+        query_emb = self.embedding_model(doc_query)
         results = self.vectordb.query_points(
             collection_name=self.collection_name,
             query=query_emb[0],
