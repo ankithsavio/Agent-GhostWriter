@@ -92,8 +92,6 @@ services:
     restart: unless-stopped
     ports:
       - "6333:6333" 
-    # volumes:
-    #   - ./qdrant_storage:/qdrant/storage
     environment:
       - RUN_MODE=production
       - QDRANT__GPU__INDEXING=1 
@@ -102,7 +100,24 @@ services:
         options:
           max-size: "1m"
           max-file: "1"
-
+  ollama-server:
+    image: ollama/ollama:latest
+    volumes:
+      - type: bind
+        source: /usr/share/ollama/.ollama/models
+        target: /app/ollama/models
+    environment:
+      OLLAMA_MODELS: /app/ollama/models
+      OLLAMA_HOST: 0.0.0.0
+    ports:
+      - "11000:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 networks:
   searxng:
 
@@ -111,4 +126,3 @@ volumes:
   caddy-config:
   valkey-data2:
   mongodb-data:
-  # qdrant_storage:
