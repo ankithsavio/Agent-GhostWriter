@@ -118,7 +118,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    command: sh -c "ollama pull deepseek-r1:7b && exec ollama serve"
+    command: serve && pull deepseek-r1:7b
 networks:
   searxng:
 
