@@ -174,3 +174,8 @@ cython_debug/
 
 pdf/
 temp/
+searxng/
+qdrant_storage/
+tests/
+.vscode/
+pytest*
