@@ -5,8 +5,8 @@ import asyncio
 from crawl4ai import AsyncWebCrawler
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
-
-from llms.basellm import EmbeddingModel, HfBaseLLM
+import re
+from llms.basellm import EmbeddingModel, TogetherBaseLLM
 
 
 class SearXNG:
@@ -34,9 +34,10 @@ class SearXNG:
             )
 
         self.embedding_model = EmbeddingModel()
-        self.llm = HfBaseLLM()
+        self.llm = TogetherBaseLLM(system_prompt="You are an helpful assistant")
 
     def get_urls(self, query, **kwargs):
+        limit = 10
         self.params |= {"q": query, **kwargs}
         try:
             response = requests.get(self.instance, params=self.params)
@@ -44,24 +45,40 @@ class SearXNG:
 
             data = response.json()
 
-            return [result["url"] for result in data["results"]]
+            return [result["url"] for result in data["results"][:limit]]
 
         except requests.exceptions.RequestException as e:
             print(f"Request failed: {e}")
         except KeyError as e:
             print(f"Unexpected JSON format: {e}")
 
+    def clean_web_content(self, content):
+        pattern = r"(?:\[[^\]]*\]|[^\]]+)?\s*\([^\)]+\)\s*"
+        cleaned_content = re.sub(pattern, "", content.markdown)
+        return cleaned_content
+
     def get_web_content(self, urls: List[str]) -> str:
 
         async def _crawl():
-            async with AsyncWebCrawler() as crawler:
-                result = []
-                for url in urls:
-                    res = await crawler.arun(
-                        url=url,
-                    )
-                    result.append(res.markdown)
-                return result
+            async with AsyncWebCrawler(headless=True, sleep_on_close=True) as crawler:
+                results = await crawler.arun_many(
+                    urls=urls,
+                    css_selector="main.content",
+                    word_count_threshold=50,
+                    excluded_tags=[
+                        "form",
+                        "header",
+                        "footer",
+                        "nav",
+                    ],
+                    exclude_external_links=True,
+                    exclude_social_media_links=True,
+                    exclude_external_images=True,
+                    html2text={
+                        "escape_dot": False,
+                    },
+                )
+                return [self.clean_web_content(result) for result in results]
 
         return asyncio.run(_crawl())
 
@@ -79,9 +96,9 @@ class SearXNG:
         """
         HyDE Approach
         """
-        prompt = """Given the question '{query}', generate a hypothetical document that \
-        directly answers this question. The document should be detailed and in-depth.the \
-        document size has to be exactly {chunk_size} characters."""
+        prompt = """Given the question '{query}', generate a hypothetical article snippet that \
+        directly answers this question. The article snippet should be detailed, in-depth and should directly \
+        answer the question. The document size has to be exactly {chunk_size} characters."""
 
         hy_document = self.llm(prompt.format(query=query, chunk_size=self.chunk_size))
 
@@ -90,7 +107,7 @@ class SearXNG:
     def search_web(self, query, **kwargs):
         urls = self.get_urls(query, **kwargs)
         docs = self.get_web_content(urls)
-        self.upsert_documents("####".join(docs))
+        self.upsert_documents("\n####\n".join(docs))
 
     def query_documents(self, query):
         doc_query = self.generate_fake_document(query)
@@ -100,6 +117,6 @@ class SearXNG:
             query=query_emb[0],
             with_vectors=False,
             with_payload=True,
-            limit=10,
+            limit=5,
         )
-        return results
+        return [result.payload["text"] for result in results.points]
