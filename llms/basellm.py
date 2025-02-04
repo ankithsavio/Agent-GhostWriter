@@ -48,6 +48,45 @@ class HfBaseLLM:
         return self.generate(self.model, message).choices[0].message.content
 
 
+class TogetherBaseLLM:
+    """
+    Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
+    """
+
+    def __init__(self, system_prompt):
+        self.system_prompt = system_prompt
+        self.prompt_template = ""
+        self.client = OpenAI(
+            base_url="https://api.together.xyz/v1",
+            api_key=os.getenv("TOGETHER_API_KEY", None),
+        )
+        self.model = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
+        self.config = {
+            "model": self.model,
+            "messages": None,
+            "temperature": None,
+            "top_p": None,
+            "max_completion_tokens": None,
+        }
+
+    def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
+
+        self.config |= {
+            "model": model or self.model,
+            "messages": messages,
+            **kwargs,
+        }
+
+        return self.client.chat.completions.create(**self.config)
+
+    def __call__(self, prompt, **kwargs):
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        return self.generate(self.model, message).choices[0].message.content
+
+
 class GeminiBaseLLM:
     """
     Base Gemini Wrapper for gemini-1.5 flash and pro models. Uses OpenAI Client using gemini inference base url.
