@@ -13,8 +13,10 @@ class HfBaseLLM:
     Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
     """
 
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
+    def __init__(self, system_prompt=None):
+        self.system_prompt = (
+            system_prompt if system_prompt else "You are an helpful assistant"
+        )
         self.prompt_template = ""
         self.client = OpenAI(
             base_url="https://api-inference.huggingface.co/v1/",
@@ -53,8 +55,10 @@ class TogetherBaseLLM:
     Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
     """
 
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
+    def __init__(self, system_prompt=None):
+        self.system_prompt = (
+            system_prompt if system_prompt else "You are an helpful assistant"
+        )
         self.prompt_template = ""
         self.client = OpenAI(
             base_url="https://api.together.xyz/v1",
@@ -92,8 +96,10 @@ class GeminiBaseLLM:
     Base Gemini Wrapper for gemini-1.5 flash and pro models. Uses OpenAI Client using gemini inference base url.
     """
 
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
+    def __init__(self, system_prompt=None):
+        self.system_prompt = (
+            system_prompt if system_prompt else "You are an helpful assistant"
+        )
         self.prompt_template = ""
         self.client = OpenAI(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -133,8 +139,10 @@ class GeminiMultiModalBaseLLM:
     Base MultiModal Gemini Wrapper for Genai Pyton SDK. WIP.
     """
 
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
+    def __init__(self, system_prompt=None):
+        self.system_prompt = (
+            system_prompt if system_prompt else "You are an helpful assistant"
+        )
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", None))
         self.model = "gemini-1.5-flash-002"
         self.large_model = "gemini-exp-1206"
@@ -177,3 +185,46 @@ class EmbeddingModel:
     def __call__(self, texts: List[str]):
 
         return [data.embedding for data in self.generate(self.model, texts).data]
+
+
+class GeminiBaseStructuredLLM:
+    """
+    Base Gemini Wrapper for gemini-1.5 flash and pro models. Uses OpenAI Client using gemini inference base url.
+    """
+
+    def __init__(self, system_prompt=None):
+        self.system_prompt = (
+            system_prompt if system_prompt else "You are an helpful assistant"
+        )
+        self.prompt_template = ""
+        self.client = OpenAI(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=os.getenv("GEMINI_API_KEY", None),
+        )
+        self.model = "gemini-2.0-flash-exp"
+        self.large_model = "gemini-1.5-pro"
+        self.config = {
+            "model": self.model,
+            "messages": None,
+            "temperature": None,
+            "top_p": None,
+            "max_completion_tokens": None,
+        }
+
+    def generate(self, model: str, messages: List[Dict[str, str]], format, **kwargs):
+
+        self.config |= {
+            "model": model or self.model,
+            "messages": messages,
+            "response_format": format,
+            **kwargs,
+        }
+
+        return self.client.beta.chat.completions.parse(**self.config)
+
+    def __call__(self, prompt, format, **kwargs):
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        return self.generate(self.model, message, format).choices[0].message.parsed
