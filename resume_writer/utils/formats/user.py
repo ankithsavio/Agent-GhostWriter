@@ -51,4 +51,3 @@ class UserReport(BaseModel):
     skills: List[str]
     certifications: List[str]
     publications: List[str]
-
