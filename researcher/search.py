@@ -16,6 +16,7 @@ class SearXNG:
             "format": "json",
             "categories": "general",
             "language": "en",
+            "num_results": 5,
         }
         self.chunk_size = 1000
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -34,10 +35,10 @@ class SearXNG:
             )
 
         self.embedding_model = EmbeddingModel()
-        self.llm = TogetherBaseLLM(system_prompt="You are an helpful assistant")
+        self.llm = TogetherBaseLLM()
 
     def get_urls(self, query, **kwargs):
-        limit = 10
+        limit = 5
         self.params |= {"q": query, **kwargs}
         try:
             response = requests.get(self.instance, params=self.params)
@@ -120,3 +121,8 @@ class SearXNG:
             limit=5,
         )
         return [result.payload["text"] for result in results.points]
+
+    def run(self, query):
+        self.search_web(query)
+        result = self.query_documents(query)
+        return result
