@@ -160,14 +160,9 @@ class SearXNG:
 
         return hy_document
 
-    def search_web(self, query, **kwargs):
-        results = self.get_urls(query, **kwargs)
-        content_list = self.get_web_content(results)
-        self.upsert_documents(self.split_documents(content_list))  # split here
-
     def query_documents(self, query):
         doc_query = self.generate_fake_document(query)
-        doc_query = query
+        # doc_query = query
         query_emb = self.embedding_model(doc_query)
         results = self.vectordb.query_points(
             collection_name=self.collection_name,
@@ -186,7 +181,21 @@ class SearXNG:
         ]
 
     def run(self, query):
-        self.search_web(query)
+        results = self.get_urls(query)
+        content_list = self.get_web_content(results)
+        self.upsert_documents(self.split_documents(content_list))  # split here
         result = self.query_documents(query)
         return result
 
+    def run_many(self, queries):
+        url_list = []
+        for query in queries:
+            result = self.get_urls(query)
+            url_list.extend(result)
+        content_list = self.get_web_content(url_list)
+        self.upsert_documents(self.split_documents(content_list))
+        result_list = []
+        for query in queries:
+            result = self.query_documents(query)
+            result_list.extend({"query": query, "result": result})
+        return result_list
