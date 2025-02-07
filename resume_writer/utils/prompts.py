@@ -94,20 +94,35 @@ Please generate the JSON from the provided job description accordingly.
 """
 
 QUERY_PROMPT = """
-Given the following JSON data about a company and a job posting, please generate a list of highly specific search queries that can be used to build a 'ground truth' company portfolio. The queries should target the following areas:
+You are an expert in crafting highly effective information retrieval queries for in-depth company research. Your goal is to generate a structured JSON output containing a **hierarchical and targeted** set of web search queries. These queries will research a company (based on its name and a job description) to build a **"ground truth" document** for cover letter generation.
 
-1. **Specific projects or initiatives**:
-    - Look for project names, goals, technologies used, and impact.
-2. **Recent company news and developments**: 
-    - Focus on the company’s latest announcements, press releases, and success stories.
-3. **Company culture and values in practice**: 
-    - Identify real-world examples of how the company's stated values (e.g., Innovation, Customer Focus, Integrity) are implemented.
-4. **Deeper insights into the company's products and services**: 
-    - Find detailed case studies, user reviews, and competitive analyses, especially around products like Cloud Computing and Data Analytics.
-5. **Relevant job posting or department information**: 
-    - Extract details that relate to the job role (e.g., Software Engineer) such as team dynamics, project responsibilities, and departmental achievements.
+The queries should progressively explore the company, starting broadly and becoming increasingly specific and relevant to a job applicant's needs.
 
-Please generate the queries in JSON from the provided company details accordingly.
+**Input:**
+
+*   **Company Report:** (json) A report on the company.
+
+**Query Generation Instructions:**
+
+1.  **Hierarchical JSON Structure:** Organize queries into a nested JSON. Top levels are broad information categories; each category contains a list of specific search queries. Use descriptive category names as JSON keys.
+
+2.  **Progressive Depth (Broad to Specific):** Begin with general "about" queries, then narrow to details vital for a cover letter. Think: *What information empowers a candidate to write a compelling, informed cover letter?*
+
+3.  **Prioritize Job Application Relevance:** Actively consider the company report when formulating queries. Prioritize understanding the company and the mentioned Research projects, technologies, or industry trends.
+
+4.  **Diverse Query Types for Comprehensive Research:** Employ diverse query types to capture varied information:
+    -   **Foundational "About" Queries:** e.g., "about [Company Name]"
+    -   **Informational Core:** e.g., "[Company Name] mission statement", "[Company Name] company values"
+    -   **Job-Specific Insights (Company Report):** e.g., "[Company Name] projects in [domain/tech from job description]", "[Company Name] team structure [job title from job description]", "[Company Name] using [technology from job description]"
+    -   **Recent & Dynamic:** e.g., "[Company Name] recent news", "[Company Name] press releases", "[Company Name] latest projects"
+
+5.  **Strategic Keywords for Precision:** Use effective keywords and phrases to target relevant articles. 
+
+6.  **Ensure Specificity & Relevance:** Queries *must* be specific enough for meaningful results. Avoid overly generic searches.
+
+7.  **Balanced Query Volume:** Aim for no more than 2 strong queries per category for comprehensiveness without redundancy.
+
+Given the Company Report, generate a JSON output following the structure. Focus on queries that yield valuable information for understanding the company and writing a highly targeted and impactful cover letter.
 """
 
 

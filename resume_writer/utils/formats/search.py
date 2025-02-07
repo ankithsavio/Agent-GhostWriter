@@ -1,30 +1,25 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 
 
-class projects_initiatives(BaseModel):
-    queries: List[str]
+class company_overview(BaseModel):
+    queries: List[str] = Field(min_items=2, max_items=2)
 
 
-class recent_news(BaseModel):
-    queries: List[str]
+class products_and_services(BaseModel):
+    queries: List[str] = Field(min_items=2, max_items=2)
 
 
-class company_culture(BaseModel):
-    queries: List[str]
+class job_specific_context(BaseModel):
+    queries: List[str] = Field(min_items=2, max_items=2)
 
 
-class products_services(BaseModel):
-    queries: List[str]
-
-
-class job_posting_department(BaseModel):
-    queries: List[str]
+class recent_news_and_projects(BaseModel):
+    queries: List[str] = Field(min_items=2, max_items=2)
 
 
 class SearchQueries(BaseModel):
-    projects_initiatives: projects_initiatives
-    recent_news: recent_news
-    company_culture: company_culture
-    products_services: products_services
-    job_posting_department: job_posting_department
+    company_overview: company_overview
+    products_and_services: products_and_services
+    job_specific_context: job_specific_context
+    recent_news_and_projects: recent_news_and_projects
