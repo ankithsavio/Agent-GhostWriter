@@ -5,8 +5,8 @@ import asyncio
 from crawl4ai import AsyncWebCrawler
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
-import re
 from llms.basellm import EmbeddingModel, TogetherBaseLLM
+from trafilatura import extract
 
 
 class SearXNG:
@@ -16,29 +16,45 @@ class SearXNG:
             "format": "json",
             "categories": "general",
             "language": "en",
-            "num_results": 5,
         }
-        self.chunk_size = 1000
+        self.chunk_size = 2000
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.chunk_size,
-            chunk_overlap=100,
+            chunk_size=2000,
+            chunk_overlap=0,
             length_function=len,
+            is_separator_regex=False,
+            separators=[
+                "\n\n",
+                "\n",
+                ".",
+                "\uff0e",
+                "\u3002",
+                ",",
+                "\uff0c",
+                "\u3001",
+                " ",
+                "\u200B",
+                "",
+            ],
         )
 
         self.vectordb = QdrantClient(url="http://localhost:6333")
         self.collection_name = "WebSearch"
 
-        if not self.vectordb.collection_exists(self.collection_name):
-            self.vectordb.create_collection(
-                collection_name=self.collection_name,
-                vectors_config=VectorParams(size=768, distance=Distance.COSINE),
-            )
+        if self.vectordb.collection_exists(self.collection_name):
+            self.vectordb.delete_collection(self.collection_name)
+
+        self.vectordb.create_collection(
+            collection_name=self.collection_name,
+            vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+        )
 
         self.embedding_model = EmbeddingModel()
         self.llm = TogetherBaseLLM()
 
-    def get_urls(self, query, **kwargs):
-        limit = 5
+        self.scraped_urls = []
+
+    def get_urls(self, query, limit=5, **kwargs):
         self.params |= {"q": query, **kwargs}
         try:
             response = requests.get(self.instance, params=self.params)
@@ -46,19 +62,28 @@ class SearXNG:
 
             data = response.json()
 
-            return [result["url"] for result in data["results"][:limit]]
+            return [
+                {"title": result.get("title", ""), "url": result.get("url", "")}
+                for result in data["results"]
+                if result["url"] not in self.scraped_urls
+            ][:limit]
 
         except requests.exceptions.RequestException as e:
             print(f"Request failed: {e}")
         except KeyError as e:
             print(f"Unexpected JSON format: {e}")
 
-    def clean_web_content(self, content):
-        pattern = r"(?:\[[^\]]*\]|[^\]]+)?\s*\([^\)]+\)\s*"
-        cleaned_content = re.sub(pattern, "", content.markdown)
-        return cleaned_content
+    def clean_html(self, content):
+        return extract(
+            content.html,
+            include_tables=False,
+            include_comments=False,
+            output_format="txt",
+        )
 
-    def get_web_content(self, urls: List[str]) -> str:
+    def get_web_content(self, web_results: List[dict]) -> str:
+        urls = [item["url"] for item in web_results]
+        self.scraped_urls.extend(urls)
 
         async def _crawl():
             async with AsyncWebCrawler(headless=True, sleep_on_close=True) as crawler:
@@ -79,17 +104,47 @@ class SearXNG:
                         "escape_dot": False,
                     },
                 )
-                return [self.clean_web_content(result) for result in results]
+
+                return [
+                    {
+                        "title": web_results[idx].get("title", ""),
+                        "url": web_results[idx].get("url", ""),
+                        "content": self.clean_html(result),
+                    }
+                    for idx, result in enumerate(results)
+                ]
 
         return asyncio.run(_crawl())
 
-    def upsert_documents(self, doc):
-        chunks = self.text_splitter.split_text(doc)
-        chunks_dict = [{"id": idx, "text": chunk} for idx, chunk in enumerate(chunks)]
-        embeddings = self.embedding_model(chunks[:100])
+    def split_documents(self, content_list):
+        doc_list = []
+        for content in content_list:
+            chunks = self.text_splitter.split_text(content.get("content"))
+            chunk_list = [
+                {
+                    "title": content.get("title", ""),
+                    "url": content.get("url", ""),
+                    "chunk": chunk,
+                }
+                for chunk in chunks
+            ]
+            doc_list.extend(chunk_list)
+        return doc_list
+
+    def upsert_documents(self, doc_list):
+        chunks_list = [doc["chunk"] for doc in doc_list]
+        embeddings = self.embedding_model(chunks_list)
         points = [
-            PointStruct(id=doc["id"], vector=embedding, payload={"text": doc["text"]})
-            for doc, embedding in zip(chunks_dict, embeddings)
+            PointStruct(
+                id=idx,
+                vector=embedding,
+                payload={
+                    "title": doc["title"],
+                    "url": doc["url"],
+                    "text": doc["chunk"],
+                },
+            )
+            for idx, (doc, embedding) in enumerate(zip(doc_list, embeddings))
         ]
         self.vectordb.upsert(collection_name=self.collection_name, points=points)
 
@@ -106,12 +161,13 @@ class SearXNG:
         return hy_document
 
     def search_web(self, query, **kwargs):
-        urls = self.get_urls(query, **kwargs)
-        docs = self.get_web_content(urls)
-        self.upsert_documents("\n####\n".join(docs))
+        results = self.get_urls(query, **kwargs)
+        content_list = self.get_web_content(results)
+        self.upsert_documents(self.split_documents(content_list))  # split here
 
     def query_documents(self, query):
         doc_query = self.generate_fake_document(query)
+        doc_query = query
         query_emb = self.embedding_model(doc_query)
         results = self.vectordb.query_points(
             collection_name=self.collection_name,
@@ -120,9 +176,17 @@ class SearXNG:
             with_payload=True,
             limit=5,
         )
-        return [result.payload["text"] for result in results.points]
+        return [
+            {
+                "title": result.payload["title"],
+                "url": result.payload["url"],
+                "text": result.payload["text"],
+            }
+            for result in results.points
+        ]
 
     def run(self, query):
         self.search_web(query)
         result = self.query_documents(query)
         return result
+
