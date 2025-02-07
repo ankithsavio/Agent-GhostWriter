@@ -3,19 +3,19 @@ from typing import List
 
 
 class company_overview(BaseModel):
-    queries: List[str] = Field(min_items=2, max_items=2)
+    queries: List[str]
 
 
 class products_and_services(BaseModel):
-    queries: List[str] = Field(min_items=2, max_items=2)
+    queries: List[str]
 
 
 class job_specific_context(BaseModel):
-    queries: List[str] = Field(min_items=2, max_items=2)
+    queries: List[str]
 
 
 class recent_news_and_projects(BaseModel):
-    queries: List[str] = Field(min_items=2, max_items=2)
+    queries: List[str]
 
 
 class SearchQueries(BaseModel):

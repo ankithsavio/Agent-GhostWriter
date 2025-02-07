@@ -131,9 +131,17 @@ class SearXNG:
             doc_list.extend(chunk_list)
         return doc_list
 
+    def get_embeddings(self, text_list: List):
+        embeddings_list = []
+        for i in range(0, len(text_list), 100):
+            valid_chunks = text_list[i : i + 100]
+            embeddings = self.embedding_model(valid_chunks)
+            embeddings_list.extend(embeddings)
+        return embeddings_list
+
     def upsert_documents(self, doc_list):
         chunks_list = [doc["chunk"] for doc in doc_list]
-        embeddings = self.embedding_model(chunks_list)
+        embeddings = self.get_embeddings(chunks_list)
         points = [
             PointStruct(
                 id=idx,
@@ -197,5 +205,5 @@ class SearXNG:
         result_list = []
         for query in queries:
             result = self.query_documents(query)
-            result_list.extend({"query": query, "result": result})
+            result_list.append({"query": query, "result": result})
         return result_list
