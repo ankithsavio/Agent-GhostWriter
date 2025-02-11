@@ -5,8 +5,9 @@ import asyncio
 from crawl4ai import AsyncWebCrawler
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
-from llms.basellm import EmbeddingModel, TogetherBaseLLM
+from llms.basellm import EmbeddingModel, TogetherBaseLLM, HfBaseLLM
 from trafilatura import extract
+from urllib.parse import urlparse
 
 
 class SearXNG:
@@ -53,6 +54,11 @@ class SearXNG:
         self.llm = TogetherBaseLLM()
 
         self.scraped_urls = []
+        self.excluded_urls = ["linkedin.com"]
+
+    def get_domain(self, url):
+        parsed_url = urlparse(url)
+        return parsed_url.netloc
 
     def get_urls(self, query, limit=5, **kwargs):
         self.params |= {"q": query, **kwargs}
@@ -66,6 +72,7 @@ class SearXNG:
                 {"title": result.get("title", ""), "url": result.get("url", "")}
                 for result in data["results"]
                 if result["url"] not in self.scraped_urls
+                and self.get_domain(result["url"]) not in self.excluded_urls
             ][:limit]
 
         except requests.exceptions.RequestException as e:
@@ -107,11 +114,12 @@ class SearXNG:
 
                 return [
                     {
-                        "title": web_results[idx].get("title", ""),
-                        "url": web_results[idx].get("url", ""),
+                        "title": web_result.get("title", ""),
+                        "url": web_result.get("url", ""),
                         "content": self.clean_html(result),
                     }
-                    for idx, result in enumerate(results)
+                    for web_result, result in zip(web_results, results)
+                    if result
                 ]
 
         return asyncio.run(_crawl())
