@@ -1,9 +1,17 @@
+import openai
 from openai import OpenAI
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from typing import List, Dict
 import os
+import time
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
+    retry_if_exception_type,
+)
 
 load_dotenv("./.env")
 
@@ -41,8 +49,8 @@ class HfBaseLLM:
 
         return self.client.chat.completions.create(**self.config)
 
-    def __call__(self, **kwargs):
-        prompt = self.prompt_template.format(**kwargs)
+    def __call__(self, prompt, **kwargs):
+        # prompt = self.prompt_template.format(**kwargs)
         message = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
@@ -73,6 +81,11 @@ class TogetherBaseLLM:
             "max_completion_tokens": None,
         }
 
+    @retry(
+        retry=retry_if_exception_type(openai.RateLimitError),
+        wait=wait_random_exponential(min=5, max=60),
+        stop=stop_after_attempt(10),
+    )
     def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
 
         self.config |= {
@@ -81,7 +94,11 @@ class TogetherBaseLLM:
             **kwargs,
         }
 
-        return self.client.chat.completions.create(**self.config)
+        try:
+            response = self.client.chat.completions.create(**self.config)
+            return response
+        except openai.RateLimitError as e:
+            raise
 
     def __call__(self, prompt, **kwargs):
         message = [
