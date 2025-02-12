@@ -3,11 +3,10 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 import requests
 import asyncio
 from crawl4ai import AsyncWebCrawler
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams, PointStruct
 from llms.basellm import EmbeddingModel, TogetherBaseLLM, HfBaseLLM
 from trafilatura import extract
 from urllib.parse import urlparse
+from researcher.rag import Qdrant
 
 
 class SearXNG:
@@ -38,19 +37,10 @@ class SearXNG:
                 "",
             ],
         )
-
-        self.vectordb = QdrantClient(url="http://localhost:6333")
         self.collection_name = "WebSearch"
 
-        if self.vectordb.collection_exists(self.collection_name):
-            self.vectordb.delete_collection(self.collection_name)
+        self.vectordb = Qdrant(self.collection_name)
 
-        self.vectordb.create_collection(
-            collection_name=self.collection_name,
-            vectors_config=VectorParams(size=768, distance=Distance.COSINE),
-        )
-
-        self.embedding_model = EmbeddingModel()
         self.llm = TogetherBaseLLM()
 
         self.scraped_urls = []
@@ -132,37 +122,12 @@ class SearXNG:
                 {
                     "title": content.get("title", ""),
                     "url": content.get("url", ""),
-                    "chunk": chunk,
+                    "text": chunk,
                 }
                 for chunk in chunks
             ]
             doc_list.extend(chunk_list)
         return doc_list
-
-    def get_embeddings(self, text_list: List):
-        embeddings_list = []
-        for i in range(0, len(text_list), 100):
-            valid_chunks = text_list[i : i + 100]
-            embeddings = self.embedding_model(valid_chunks)
-            embeddings_list.extend(embeddings)
-        return embeddings_list
-
-    def upsert_documents(self, doc_list):
-        chunks_list = [doc["chunk"] for doc in doc_list]
-        embeddings = self.get_embeddings(chunks_list)
-        points = [
-            PointStruct(
-                id=idx,
-                vector=embedding,
-                payload={
-                    "title": doc["title"],
-                    "url": doc["url"],
-                    "text": doc["chunk"],
-                },
-            )
-            for idx, (doc, embedding) in enumerate(zip(doc_list, embeddings))
-        ]
-        self.vectordb.upsert(collection_name=self.collection_name, points=points)
 
     def generate_fake_document(self, query):
         """
@@ -176,31 +141,22 @@ class SearXNG:
 
         return hy_document
 
-    def query_documents(self, query):
-        doc_query = self.generate_fake_document(query)
-        # doc_query = query
-        query_emb = self.embedding_model(doc_query)
-        results = self.vectordb.query_points(
-            collection_name=self.collection_name,
-            query=query_emb[0],
-            with_vectors=False,
-            with_payload=True,
-            limit=5,
-        )
-        return [
+    def format_payloads(self, payloads):
+        list_of_payload = [
             {
                 "title": result.payload["title"],
                 "url": result.payload["url"],
                 "text": result.payload["text"],
             }
-            for result in results.points
+            for result in payloads
         ]
+        return list_of_payload
 
     def run(self, query):
         results = self.get_urls(query)
         content_list = self.get_web_content(results)
         self.upsert_documents(self.split_documents(content_list))  # split here
-        result = self.query_documents(query)
+        result = self.query_documents(self.generate_fake_document(query))
         return result
 
     def run_many(self, queries):
@@ -212,6 +168,6 @@ class SearXNG:
         self.upsert_documents(self.split_documents(content_list))
         result_list = []
         for query in queries:
-            result = self.query_documents(query)
-            result_list.append({"query": query, "result": result})
+            result = self.query_documents(self.generate_fake_document(query))
+            result_list.append({"query": query, "result": self.format_payloads(result)})
         return result_list
