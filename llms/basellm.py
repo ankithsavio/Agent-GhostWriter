@@ -94,6 +94,8 @@ class TogetherBaseLLM:
             **kwargs,
         }
 
+        time.sleep(0.5)
+
         try:
             response = self.client.chat.completions.create(**self.config)
             return response
@@ -123,7 +125,7 @@ class GeminiBaseLLM:
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
         self.model = "gemini-2.0-flash-exp"
-        self.large_model = "gemini-1.5-pro"
+        self.large_model = "gemini-2.0-pro-exp-02-05"
         self.config = {
             "model": self.model,
             "messages": None,
@@ -142,8 +144,8 @@ class GeminiBaseLLM:
 
         return self.client.chat.completions.create(**self.config)
 
-    def __call__(self, **kwargs):
-        prompt = self.prompt_template.format(**kwargs)
+    def __call__(self, prompt, **kwargs):
+        # prompt = self.prompt_template.format(**kwargs)
         message = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
