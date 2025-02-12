@@ -39,7 +39,8 @@ class SearXNG:
         )
         self.collection_name = "WebSearch"
 
-        self.vectordb = Qdrant(self.collection_name)
+        self.vectordb = Qdrant()
+        self.vectordb.create_collection(self.collection_name)
 
         self.llm = TogetherBaseLLM()
 
@@ -155,8 +156,12 @@ class SearXNG:
     def run(self, query):
         results = self.get_urls(query)
         content_list = self.get_web_content(results)
-        self.upsert_documents(self.split_documents(content_list))  # split here
-        result = self.query_documents(self.generate_fake_document(query))
+        self.vectordb.upsert_documents(
+            self.collection_name, self.split_documents(content_list)
+        )  # split here
+        result = self.vectordb.query_documents(
+            self.collection_name, self.generate_fake_document(query)
+        )
         return result
 
     def run_many(self, queries):
@@ -165,9 +170,13 @@ class SearXNG:
             result = self.get_urls(query)
             url_list.extend(result)
         content_list = self.get_web_content(url_list)
-        self.upsert_documents(self.split_documents(content_list))
+        self.vectordb.upsert_documents(
+            self.collection_name, self.split_documents(content_list)
+        )
         result_list = []
         for query in queries:
-            result = self.query_documents(self.generate_fake_document(query))
+            result = self.vectordb.query_documents(
+                self.collection_name, self.generate_fake_document(query)
+            )
             result_list.append({"query": query, "result": self.format_payloads(result)})
         return result_list
