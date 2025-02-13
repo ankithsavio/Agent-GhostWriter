@@ -6,7 +6,7 @@ from crawl4ai import AsyncWebCrawler
 from llms.basellm import EmbeddingModel, TogetherBaseLLM, HfBaseLLM
 from trafilatura import extract
 from urllib.parse import urlparse
-from researcher.rag import Qdrant
+from researcher.vectordb import Qdrant
 
 
 class SearXNG:
