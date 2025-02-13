@@ -2,6 +2,10 @@ from pymongo import MongoClient
 import uuid
 from typing import List
 from pydantic import BaseModel
+import os
+from dotenv import load_dotenv
+
+load_dotenv(".env")
 
 
 class Message(BaseModel):
@@ -12,7 +16,8 @@ class Message(BaseModel):
 class ConversationHistory:
 
     def __init__(self, name: str):
-        self.client = MongoClient("localhost", 27018)
+        url = f"mongodb://{os.getenv('MONGO_ROOT_USERNAME', 'root')}:{os.getenv('MONGO_ROOT_PASSWORD', 'example')}@localhost:27018/?authSource=admin"
+        self.client = MongoClient(url)
         self.session_id = str(uuid.uuid4())
         self.db = self.client["Ghost_Writer"]
         self.collection = self.db[name]
