@@ -220,7 +220,7 @@ class GeminiBaseStructuredLLM:
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
-        self.model = "gemini-2.0-flash-exp"
+        self.model = "gemini-2.0-flash"
         self.large_model = "gemini-1.5-pro"
         self.config = {
             "model": self.model,

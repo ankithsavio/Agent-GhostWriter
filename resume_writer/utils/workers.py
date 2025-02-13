@@ -6,4 +6,4 @@ class Worker:
         self.persona = persona
         self.short_summary = short_summary
         self.description = description
-        self.conversation_history = ConversationHistory(name=self.short_summary)
+        self.conversation_history = ConversationHistory(name=self.persona)
