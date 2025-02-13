@@ -7,6 +7,8 @@ from resume_writer.utils.formats.prompt import Prompt
 from resume_writer.utils.formats.user import UserReport
 from resume_writer.utils.formats.company import CompanyReport
 from resume_writer.utils.formats.search import SearchQueries
+from resume_writer.utils.formats.persona import Personas
+from resume_writer.utils.workers import Worker
 from llms.extractor import PDFExtractor
 from llms.basellm import (
     TogetherBaseLLM,
@@ -16,7 +18,7 @@ from llms.basellm import (
 )
 from resume_writer.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
 from researcher.search import SearXNG
-from researcher.rag import Qdrant
+from researcher.vectordb import Qdrant
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
 import time
@@ -34,7 +36,7 @@ class ResumeWriterEngine:
         self.vectordb = Qdrant()
         self.user_collection = "User_Report"
         self.company_collection = "Company_Report"
-        self.setup_vectordb([self.user_collection, self.company_collection])
+        # self.setup_vectordb([self.user_collection, self.company_collection])
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
             chunk_overlap=0,
@@ -56,7 +58,7 @@ class ResumeWriterEngine:
         )
         self.job_description = JOB_DESC
         self.pdf_paths = ["pdf/Resume.pdf", "pdf/Cover Letter.pdf"]
-        # self.user_reports = self.load_files()
+        self.user_reports = self.load_files()
         self.company_reports = self.load_job()
 
     def load_files(self):
@@ -222,17 +224,81 @@ class ResumeWriterEngine:
         for name in collection_names:
             self.vectordb.create_collection(name)
 
-    def query_user(self, queries):
-        pass
+    def query_vectordb(self, entity: str, queries: List[str]):
+        if entity == "user":
+            collection_name = self.user_collection
+        elif entity == "company":
+            collection_name = self.company_collection
+        else:
+            raise ValueError("Invalid entity")
 
-    def query_company(self, queries):
-        pass
+        result_list = []
+        for query in queries:
+            results = self.vectordb.query_documents(collection_name, query)
+            result_list.append(
+                {
+                    "query": query,
+                    "result": [result.payload["text"] for result in results],
+                }
+            )
+
+        return result_list
+
+    def workflow(self):
+        def get_draft_outline():
+            resume_outline = self.llm(
+                str(
+                    Prompt(
+                        prompt=f"Generate an resume outline with only the topic headers for the role: {self.company_reports[0].jobPosting.jobTitle}",
+                        example=[
+                            """
+                        # Title\n
+                        ## Subsection Title\n
+                        ### Subsubsection Title\n
+                        """
+                        ],
+                    )
+                )
+            )
+            return resume_outline
+
+        def get_personas():
+            topic = f"Personalized Resume for the role {self.company_reports[0].jobPosting.jobTitle} at {self.company_reports[0].company.name} for {self.user_reports[0].personal_information.name}"
+            personas_result = self.structured_llm(
+                prompt=str(
+                    Prompt(
+                        prompt=f"You need to select a group of Resume editors who will work together to create a {topic}. \
+                            Each of them represents a different perspective , role , or affiliation for crafting the resume for the user."
+                    )
+                ),
+                format=Personas,
+            )
+            return [
+                Worker(**persona.model_dump()) for persona in personas_result.editors
+            ]
+
+        def get_questions():
+            pass
+
+        def get_search_result():
+            pass
+
+        def get_answers():
+            pass
+
+        def get_regined_outline():
+            pass
+
+        result = get_personas()
+
+        return result
+        # pass
 
 
 if __name__ == "__main__":
     start_time = time.time()
     model = ResumeWriterEngine()
-    results = model.create_company_portfolio()
+    results = model.workflow()
     end_time = time.time()
 
     print(results)
