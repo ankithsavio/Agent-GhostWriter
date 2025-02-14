@@ -6,9 +6,9 @@ from pydantic import BaseModel
 from resume_writer.utils.formats.prompt import Prompt
 from resume_writer.utils.formats.user import UserReport
 from resume_writer.utils.formats.company import CompanyReport
-from resume_writer.utils.formats.search import SearchQueries
+from resume_writer.utils.formats.search import SearchQueries, RAGQueries
 from resume_writer.utils.formats.persona import Personas
-from resume_writer.utils.workers import Worker
+from resume_writer.utils.workers import Worker, Message
 from llms.extractor import PDFExtractor
 from llms.basellm import (
     TogetherBaseLLM,
@@ -75,12 +75,7 @@ class ResumeWriterEngine:
 
     def load_job(self):
         result = self.structured_llm(
-            prompt=str(
-                Prompt(
-                    prompt=JD_PROMPT
-                    + f"<Job Description>\n{self.job_description}\n</Job Description>"
-                )
-            ),
+            prompt=str(Prompt(prompt=JD_PROMPT, job_description=self.job_description)),
             format=CompanyReport,
         )
         return [result]
@@ -92,8 +87,8 @@ class ResumeWriterEngine:
             response = self.llm(
                 str(
                     Prompt(
-                        prompt=f"""You are a helpful researcher. You are provided with the user query and a list of web search results.
-                        <Instructions> 
+                        prompt="You are a helpful researcher. You are provided with the user query and a list of web search results.",
+                        instructions="""
                         1. Summarize the search results into clear and concise overview that directly address the search query.
                         2. Synthesize information from multiple results where appropriate.
                         3. Include citations for key facts and claims. For each piece of information you present, indicate which search result(s) it came from.
@@ -101,13 +96,9 @@ class ResumeWriterEngine:
                         5. Maintain a neutral and objective tone.
                         6. If a source is repeated, reuse the same source number.
                         7. The summary should be no more than 500 words followed by Sources.
-                        </Instructions> 
-                        <User_Query>
-                        {result['query']}
-                        </User_Query>
-                        <Result_List>
-                        {combined_results}
-                        </Result_List>"""
+                        """,
+                        user_query=result["query"],
+                        result_list=combined_results,
                     )
                 )
             )
@@ -124,30 +115,21 @@ class ResumeWriterEngine:
             str(
                 Prompt(
                     prompt=f"Generate an user portfolio outline by strictly following the pydantic config : {str(UserReport.model_fields)}",
-                    example=[
-                        """
-                        # Title
-                        ## Subsection Title
-                        ### Subsubsection Title
-                        """
-                    ],
+                    example="""
+                    # Title
+                    ## Subsection Title
+                    ### Subsubsection Title
+                    """,
                 )
             )
         )
         self.user_portfolio = self.large_llm(
             str(
                 Prompt(
-                    prompt=f"""Generate a single comperehensive portfolio article using the provided outline and two structured user reports.
-                        <Outline>
-                        {portfolio_outline}
-                        </Outline>
-                        <User Report 1>
-                        {self.user_reports[0].model_dump()}
-                        </User Report 1>
-                        <User Report 2>
-                        {self.user_reports[1].model_dump()}
-                        </User Report 2>
-                        """
+                    prompt="Generate a single comperehensive portfolio article using the provided outline and two structured user reports",
+                    outline=portfolio_outline,
+                    user_report_1=self.user_reports[0].model_dump(),
+                    user_report_2=self.user_reports[1].model_dump(),
                 )
             )
         )
@@ -158,14 +140,12 @@ class ResumeWriterEngine:
             str(
                 Prompt(
                     prompt=f"Generate an company portfolio outline with only the topic headers and sources by strictly following the pydantic config : {str(SearchQueries.model_fields)}",
-                    example=[
-                        """
-                        # Title\n
-                        ## Subsection Title\n
-                        ### Subsubsection Title\n
-                        # Sources
-                        """
-                    ],
+                    example="""
+                    # Title\n
+                    ## Subsection Title\n
+                    ### Subsubsection Title\n
+                    # Sources
+                    """,
                 )
             )
         )
@@ -173,8 +153,8 @@ class ResumeWriterEngine:
         result = self.structured_llm(
             prompt=str(
                 Prompt(
-                    prompt=QUERY_PROMPT
-                    + f"""<Company Report>{self.company_reports[0].model_dump()}</Company Report>"""
+                    prompt=QUERY_PROMPT,
+                    company_report=self.company_reports[0].model_dump(),
                 )
             ),
             format=SearchQueries,
@@ -199,21 +179,16 @@ class ResumeWriterEngine:
             self.company_portfolio = self.llm(
                 str(
                     Prompt(
-                        prompt=f"""You are a **technical writer** specializing in company reports. Your task is to expand the report for **{self.company_reports[0].company.name}** by filling in sections of the provided outline using the following search results. \
-                            <Instructions>
+                        prompt=f"You are a **technical writer** specializing in company reports. Your task is to expand the report for **{self.company_reports[0].company.name}** by filling in sections of the provided outline using the following search results.",
+                        instructions=f"""
                             1. Content Relevance: Ensure all added content is directly relevant to **{self.company_reports[0].company.name}**. Do not include information about other companies or irrelevant topics. Focus on information that directly supports the outline sections.
                             2. Outline Adherence: Strictly adhere to the provided outline structure. Only fill in content under the appropriate headings. Do not add new sections or deviate from the existing outline.
                             3. Source Citations: Cite sources using square brackets and numbers, e.g., `[1]`, `[2]`. If a source is already cited in the existing report, reuse the same source number.
                             4. No Irrelevant Information: If the search results do not contain relevant information for a specific section of the outline, leave that section blank. Do not invent or assume information. Maintain the original outline structure even if some sections remain unfilled.
                             5. Concise Integration: Integrate the information from the search results concisely and effectively into the report. 
-                            </Instructions>
-                            <Outline>
-                            {self.company_portfolio}
-                            </Outline>
-                            <Search Results>
-                            {search_results_formatted}
-                            </Search Results>
-                            """
+                        """,
+                        outline=self.company_portfolio,
+                        search_results=search_results_formatted,
                     )
                 )
             )
@@ -245,30 +220,29 @@ class ResumeWriterEngine:
         return result_list
 
     def workflow(self):
+        topic = f"Personalized Resume for the role {self.company_reports[0].jobPosting.jobTitle} at {self.company_reports[0].company.name} for {self.user_reports[0].personal_information.name}"
+
         def get_draft_outline():
             resume_outline = self.llm(
                 str(
                     Prompt(
                         prompt=f"Generate an resume outline with only the topic headers for the role: {self.company_reports[0].jobPosting.jobTitle}",
-                        example=[
-                            """
+                        example="""
                         # Title\n
                         ## Subsection Title\n
                         ### Subsubsection Title\n
-                        """
-                        ],
+                        """,
                     )
                 )
             )
             return resume_outline
 
         def get_personas():
-            topic = f"Personalized Resume for the role {self.company_reports[0].jobPosting.jobTitle} at {self.company_reports[0].company.name} for {self.user_reports[0].personal_information.name}"
             personas_result = self.structured_llm(
                 prompt=str(
                     Prompt(
                         prompt=f"You need to select a group of Resume editors who will work together to create a {topic}. \
-                            Each of them represents a different perspective , role , or affiliation for crafting the resume for the user."
+                        Each of them represents a different perspective , role , or affiliation for crafting the resume for the user."
                     )
                 ),
                 format=Personas,
@@ -277,16 +251,86 @@ class ResumeWriterEngine:
                 Worker(**persona.model_dump()) for persona in personas_result.editors
             ]
 
-        def get_questions():
-            pass
+        def get_questions(worker: Worker):
+            response = self.llm(
+                str(
+                    Prompt(
+                        prompt=f"You are an experienced Resume writer and want to create a {topic}. Besides your identity as a Resume writer , you have a specific focus when researching i.e {worker.short_summary}.\
+                        Now , you are chatting with an expert to get information.",
+                        persona=f"""
+                        role: {worker.persona} 
+                        description: {worker.description} 
+                        """,
+                        conversation_history="\n".join(
+                            [
+                                f"\nrole : {message.role}\ncontent: {message.content}"
+                                for message in worker.conversation.get_messages()
+                            ]
+                        ),
+                        instructions="""
+                            1. Ask good questions directly to get more useful information.
+                            2. When you have no more question to ask , say "Thank you so much for your help" to end the conversation.
+                            3. Only ask one question at a time and don't ask what you have asked before.
+                            4. Your questions should be related to the topic you want to write.
+                        """,
+                    )
+                )
+            )
+            message = Message(role=worker.persona, content=response)
+            worker.conversation.add_message(message)
 
-        def get_search_result():
-            pass
+        def get_search_result(worker):
+            last_message = worker.coversation.get_messages()[-1]
+            response = self.structured_llm(
+                str(
+                    Prompt(
+                        prompt=f"You want to answer the {worker.persona}'s question by querying vector database. What queries would answer the question effectively?",
+                        question=f"role: {last_message.role}\ncontent: {last_message.content}",
+                        instructions="""
+                        1. Generate a set of queries that can completely and effectively answer the question.
+                        2. Choose appropriate entity based on the query.
+                        """,
+                    )
+                ),
+                format=RAGQueries,
+            )
+            return self.query_vectordb(**response.model_dump())
 
-        def get_answers():
-            pass
+        def get_answers(worker: Worker, search_results):
+            response = self.llm(
+                str(
+                    Prompt(
+                        prompt=f"You are an expert who can use information effectively. You are chatting with a Resume writer who wants to createa a {topic}\
+                        for which you have the necessary information. You have gathered the related information and will now use the information to \
+                        form a response.",
+                        conversation_history="\n".join(
+                            [
+                                f"\nrole : {message.role}\ncontent: {message.content}"
+                                for message in worker.conversation.get_messages()
+                            ]
+                        ),
+                        gathered_information=search_results,
+                        instructions="""
+                        1. Make your response as informative as possible.
+                        2. Make sure every sentence is supported by the gathered information.
+                        3. Provide your answers directly and do not create new information that is not available in gathered information.
+                        """,
+                    )
+                )
+            )
+            message = Message(role="Expert", content=response)
+            worker.conversation.add_message(message)
 
-        def get_regined_outline():
+        def conversation_simulation(worker: Worker):
+            iterations = 10
+            for _ in range(iterations):
+                message = get_questions(worker)
+                if message.content.lower() == "thank you so much for your help":
+                    break
+                search_results = get_search_result(worker)
+                get_answers(worker, search_results)
+
+        def get_refined_outline():
             pass
 
         result = get_personas()
