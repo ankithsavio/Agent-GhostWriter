@@ -1,23 +1,24 @@
-from pydantic import BaseModel, ConfigDict
-from typing import List, Optional
+class Prompt:
+    def __init__(self, prompt, **kwargs):
+        self.prompt = prompt
+        self.dynamic_attr = {}
+        if kwargs:
+            self.set_new_values(kwargs)
 
+    def set_new_values(self, kwargs):
+        if not isinstance(kwargs, dict):
+            raise ValueError("Expected dict for kwargs")
 
-class BasePrompt(BaseModel):
-    prompt: str
-    model_config = ConfigDict(extra="forbid")
+        def format_value(value):
+            if isinstance(value, str):
+                return value
+            elif isinstance(value, list):
+                return "\n".join(item for item in value)
+            raise ValueError("Invalid value type")
 
-
-class Prompt(BasePrompt):
-    example: Optional[List[str]] = None
+        for key, value in kwargs.items():
+            formatted_value = f"<{key}>\n{format_value(value)}\n</{key}>"
+            self.dynamic_attr[key] = formatted_value
 
     def __str__(self):
-        if self.example:
-            examples = "\n".join(f"{i+1}:{item}" for i, item in enumerate(self.example))
-            return f"{self.prompt}\n<Examples>\n{examples}\n</Examples>"
-        else:
-            return self.prompt
-
-    def __radd__(self, left):
-        if isinstance(left, str):
-            return left + str(self)
-        return NotImplemented
+        return self.prompt + "\n" + "\n".join(self.dynamic_attr.values())
