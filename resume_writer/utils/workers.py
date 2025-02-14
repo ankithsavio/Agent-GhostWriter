@@ -1,4 +1,4 @@
-from llms.conversation import ConversationHistory
+from llms.conversation import ConversationHistory, Message
 
 
 class Worker:
@@ -6,4 +6,4 @@ class Worker:
         self.persona = persona
         self.short_summary = short_summary
         self.description = description
-        self.conversation_history = ConversationHistory(name=self.persona)
+        self.conversation = ConversationHistory(name=self.persona)
