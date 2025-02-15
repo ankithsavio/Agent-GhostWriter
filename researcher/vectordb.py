@@ -43,13 +43,13 @@ class Qdrant:
         ]
         self.client.upsert(collection_name=collection_name, points=points)
 
-    def query_documents(self, collection_name, query):
+    def query_documents(self, collection_name, query, limit=5):
         query_emb = self.embedding_model(query)
         results = self.client.query_points(
             collection_name=collection_name,
             query=query_emb[0],
             with_vectors=False,
             with_payload=True,
-            limit=5,
+            limit=limit,
         )
         return [result for result in results.points]

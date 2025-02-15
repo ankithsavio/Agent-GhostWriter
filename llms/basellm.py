@@ -230,6 +230,11 @@ class GeminiBaseStructuredLLM:
             "max_completion_tokens": None,
         }
 
+    @retry(
+        retry=retry_if_exception_type(openai.RateLimitError),
+        wait=wait_random_exponential(min=5, max=60),
+        stop=stop_after_attempt(10),
+    )
     def generate(self, model: str, messages: List[Dict[str, str]], format, **kwargs):
 
         self.config |= {

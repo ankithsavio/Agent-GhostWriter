@@ -13,8 +13,9 @@ class Prompt:
             if isinstance(value, str):
                 return value
             elif isinstance(value, list):
-                return "\n".join(item for item in value)
-            raise ValueError("Invalid value type")
+                return "\n".join(str(item) for item in value)
+            else:
+                return str(value)
 
         for key, value in kwargs.items():
             formatted_value = f"<{key}>\n{format_value(value)}\n</{key}>"

@@ -10,16 +10,12 @@ from resume_writer.utils.formats.search import SearchQueries, RAGQueries
 from resume_writer.utils.formats.persona import Personas
 from resume_writer.utils.workers import Worker, Message
 from llms.extractor import PDFExtractor
-from llms.basellm import (
-    TogetherBaseLLM,
-    GeminiBaseStructuredLLM,
-    HfBaseLLM,
-    GeminiBaseLLM,
-)
+from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
 from resume_writer.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
 from researcher.search import SearXNG
 from researcher.vectordb import Qdrant
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import time
 
@@ -30,13 +26,13 @@ class ResumeWriterEngine:
         self.pdf_llm = PDFExtractor()
         self.structured_llm = GeminiBaseStructuredLLM()
         self.llm = TogetherBaseLLM()
-        self.large_llm = GeminiBaseLLM()
-        self.large_llm.model = self.large_llm.large_model
+        # self.large_llm = GeminiBaseLLM()
+        # self.large_llm.model = self.large_llm.large_model
         self.search = SearXNG()
         self.vectordb = Qdrant()
         self.user_collection = "User_Report"
         self.company_collection = "Company_Report"
-        # self.setup_vectordb([self.user_collection, self.company_collection])
+        self.setup_vectordb([self.user_collection, self.company_collection])
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
             chunk_overlap=0,
@@ -60,6 +56,8 @@ class ResumeWriterEngine:
         self.pdf_paths = ["pdf/Resume.pdf", "pdf/Cover Letter.pdf"]
         self.user_reports = self.load_files()
         self.company_reports = self.load_job()
+        self.create_user_portfolio()
+        self.create_company_portfolio()
 
     def load_files(self):
         results = []
@@ -123,7 +121,7 @@ class ResumeWriterEngine:
                 )
             )
         )
-        self.user_portfolio = self.large_llm(
+        self.user_portfolio = self.llm(
             str(
                 Prompt(
                     prompt="Generate a single comperehensive portfolio article using the provided outline and two structured user reports",
@@ -150,23 +148,23 @@ class ResumeWriterEngine:
             )
         )
 
-        result = self.structured_llm(
-            prompt=str(
-                Prompt(
-                    prompt=QUERY_PROMPT,
-                    company_report=self.company_reports[0].model_dump(),
-                )
-            ),
-            format=SearchQueries,
-        )
-        search_queires = [query for item in result for query in item[1].queries[:2]]
-        search_results = self.summarize_search_results(
-            self.search.run_many(queries=search_queires)
-        )
+        # result = self.structured_llm(
+        #     prompt=str(
+        #         Prompt(
+        #             prompt=QUERY_PROMPT,
+        #             company_report=self.company_reports[0].model_dump(),
+        #         )
+        #     ),
+        #     format=SearchQueries,
+        # )
+        # search_queires = [query for item in result for query in item[1].queries[:2]]
+        # search_results = self.summarize_search_results(
+        #     self.search.run_many(queries=search_queires)
+        # )
 
-        # Dump search_results to a file for testing
-        with open("tests/search_results_dump.json", "w") as f:
-            json.dump(search_results, f, indent=4)
+        # # Dump search_results to a file for testing
+        # with open("tests/search_results_dump.json", "w") as f:
+        #     json.dump(search_results, f, indent=4)
 
         # Load the search_results from the dumped file for testing purposes
         with open("tests/search_results_dump.json", "r") as f:
@@ -199,17 +197,17 @@ class ResumeWriterEngine:
         for name in collection_names:
             self.vectordb.create_collection(name)
 
-    def query_vectordb(self, entity: str, queries: List[str]):
-        if entity == "user":
+    def query_vectordb(self, entity, queries: List[str]):
+        if entity.value == "user":
             collection_name = self.user_collection
-        elif entity == "company":
+        elif entity.value == "company":
             collection_name = self.company_collection
         else:
             raise ValueError("Invalid entity")
 
         result_list = []
         for query in queries:
-            results = self.vectordb.query_documents(collection_name, query)
+            results = self.vectordb.query_documents(collection_name, query, limit=2)
             result_list.append(
                 {
                     "query": query,
@@ -278,9 +276,10 @@ class ResumeWriterEngine:
             )
             message = Message(role=worker.persona, content=response)
             worker.conversation.add_message(message)
+            return message
 
-        def get_search_result(worker):
-            last_message = worker.coversation.get_messages()[-1]
+        def get_search_result(worker: Worker):
+            last_message = worker.conversation.get_messages()[-1]
             response = self.structured_llm(
                 str(
                     Prompt(
@@ -288,7 +287,8 @@ class ResumeWriterEngine:
                         question=f"role: {last_message.role}\ncontent: {last_message.content}",
                         instructions="""
                         1. Generate a set of queries that can completely and effectively answer the question.
-                        2. Choose appropriate entity based on the query.
+                        3. Generate no more than 3 queries.
+                        2. Choose appropriate entity based on the question.
                         """,
                     )
                 ),
@@ -314,6 +314,7 @@ class ResumeWriterEngine:
                         1. Make your response as informative as possible.
                         2. Make sure every sentence is supported by the gathered information.
                         3. Provide your answers directly and do not create new information that is not available in gathered information.
+                        4. Keep your answer concise.
                         """,
                     )
                 )
@@ -325,17 +326,32 @@ class ResumeWriterEngine:
             iterations = 10
             for _ in range(iterations):
                 message = get_questions(worker)
-                if message.content.lower() == "thank you so much for your help":
+                if "thank you so much for your help" in message.content.lower():
                     break
                 search_results = get_search_result(worker)
                 get_answers(worker, search_results)
 
+            return worker.conversation.get_messages()
+
         def get_refined_outline():
             pass
 
-        result = get_personas()
+        # init_resume_outline = get_draft_outline() # skip for debugging
+        personas = get_personas()
+        conversations = []
+        time.sleep(60)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            future_results = {
+                executor.submit(conversation_simulation, worker): worker
+                for worker in personas
+            }
 
-        return result
+            for future in as_completed(future_results):
+                worker = future_results[future]
+                conversation_history = future.result()
+                conversations.append({worker: conversation_history})
+
+        return conversations
         # pass
 
 
