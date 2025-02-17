@@ -287,8 +287,28 @@ class ResumeWriterEngine:
                         question=f"role: {last_message.role}\ncontent: {last_message.content}",
                         instructions="""
                         1. Generate a set of queries that can completely and effectively answer the question.
-                        3. Generate no more than 3 queries.
+                        3. Generate no more than 3-5 queries. The queries must be independent of each other.
                         2. Choose appropriate entity based on the question.
+                        """,
+                        example="""
+                        # Input
+                        role: xyz editor
+                        content: The role requires proficiency with a specific CRM, 'Salesforce,' along with 'lead generation' and 'sales pipeline management.' \
+                        Does the candidate have documented Salesforce experience, and can you find examples related to those specific sales processes?
+                        # Output
+                        {
+                            entity : user,
+                            queries : ["Salesforce experience", "Lead generation experience", "Sales pipeline management experience"]
+                        }
+                        # Input
+                        role: xyz editor
+                        content: The job description mentions a preference for candidates with a Master's degree and research experience. Does john doe hold a \
+                        Master's degree, and if so, in what field? Can you provide details of any research projects they've been involved in, including publications or presentations?
+                        # Output
+                        {
+                            entity : user,
+                            queries : ["John Doe Master's degree field of study", "Research projects", "Research publications", "Research presentations", "Academic research experience"]
+                        }
                         """,
                     )
                 ),
@@ -351,7 +371,28 @@ class ResumeWriterEngine:
                 conversation_history = future.result()
                 conversations.append({worker: conversation_history})
 
-        return conversations
+        resume_outline = get_draft_outline()
+        for conv in conversations:
+            formatted_conv = "\n".join(
+                f"role: {item.role}\ncontent: {item.content}" for item in conv
+            )
+            resume_outline = self.llm(
+                str(
+                    Prompt(
+                        prompt=f"You are a professional resume writer for {topic}. Your task is to expand the resume outline for **{self.user_reports[0].personal_information.name}** by filling in sections of the provided outline using the information learned from the information-seeking conversation",
+                        resume_outline=resume_outline,
+                        information_seeking_conversation=formatted_conv,
+                        instructions=f"""
+                            1. Content Relevance: Ensure all added content is directly relevant. Focus on information that directly supports the outline sections.
+                            2. Outline Adherence: Strictly adhere to the provided outline structure. Only fill in content under the appropriate headings. Do not add new sections or deviate from the existing outline.
+                            3. No Irrelevant Information: If the information-seeking conversation do not contain relevant information for a specific section of the outline, leave that section blank. Do not invent or assume information.
+                            4. Concise Integration: Integrate the information from the conversation concisely and effectively into the resume. 
+                        """,
+                    )
+                )
+            )
+
+        return resume_outline
         # pass
 
 
