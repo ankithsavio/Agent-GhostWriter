@@ -9,6 +9,7 @@ from resume_writer.utils.formats.company import CompanyReport
 from resume_writer.utils.formats.search import SearchQueries, RAGQueries
 from resume_writer.utils.formats.persona import Personas
 from resume_writer.utils.workers import Worker, Message
+from resume_writer.utils.diff import Updates, DiffDocument
 from llms.extractor import PDFExtractor
 from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
 from resume_writer.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
@@ -16,6 +17,7 @@ from researcher.search import SearXNG
 from researcher.vectordb import Qdrant
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import pymupdf4llm as pymupdf
 import json
 import time
 
@@ -53,7 +55,9 @@ class ResumeWriterEngine:
             ],
         )
         self.job_description = JOB_DESC
-        self.pdf_paths = ["pdf/Resume.pdf", "pdf/Cover Letter.pdf"]
+        self.resume_path = "pdf/Resume.pdf"
+        self.cover_letter_path = "pdf/Cover Letter.pdf"
+        self.pdf_paths = [self.resume_path, self.cover_letter_path]
         self.user_reports = self.load_files()
         self.company_reports = self.load_job()
         self.create_user_portfolio()
@@ -69,6 +73,8 @@ class ResumeWriterEngine:
             )
             dict_result = json.loads(result)
             results.append(UserReport(**dict_result))
+        self.resume_md = DiffDocument(pymupdf.to_markdown(self.resume_path))
+        self.cover_letter_md = DiffDocument(pymupdf.to_markdown(self.cover_letter_path))
         return results
 
     def load_job(self):
@@ -224,7 +230,8 @@ class ResumeWriterEngine:
             resume_outline = self.llm(
                 str(
                     Prompt(
-                        prompt=f"Generate an resume outline with only the topic headers for the role: {self.company_reports[0].jobPosting.jobTitle}",
+                        prompt=f"Generate an resume outline with only the topic headers for the role: {self.company_reports[0].jobPosting.jobTitle} based on the given user profile.",
+                        user_profile=self.user_portfolio,
                         example="""
                         # Title\n
                         ## Subsection Title\n
@@ -371,29 +378,43 @@ class ResumeWriterEngine:
                 conversation_history = future.result()
                 conversations.append({worker: conversation_history})
 
-        resume_outline = get_draft_outline()
-        for conv in conversations:
-            formatted_conv = "\n".join(
-                f"role: {item.role}\ncontent: {item.content}" for item in conv
-            )
-            resume_outline = self.llm(
-                str(
+        return conversations
+
+    def post_workflow(self, conversation: List[Message]):
+        formatted_conv = "\n".join(
+            f"role: {item.role}\ncontent: {item.content}" for item in conversation
+        )
+        updated_content = ""
+        while True:
+            resume_updates = self.structured_llm(
+                prompt=str(
                     Prompt(
-                        prompt=f"You are a professional resume writer for {topic}. Your task is to expand the resume outline for **{self.user_reports[0].personal_information.name}** by filling in sections of the provided outline using the information learned from the information-seeking conversation",
-                        resume_outline=resume_outline,
+                        prompt=f"You are a professional resume writer. Your task is to update the given resume for the role **{self.company_reports[0].jobPosting.jobTitle}** by using the information learned from the information-seeking conversation",
+                        resume=self.resume_md(),
                         information_seeking_conversation=formatted_conv,
-                        instructions=f"""
-                            1. Content Relevance: Ensure all added content is directly relevant. Focus on information that directly supports the outline sections.
-                            2. Outline Adherence: Strictly adhere to the provided outline structure. Only fill in content under the appropriate headings. Do not add new sections or deviate from the existing outline.
-                            3. No Irrelevant Information: If the information-seeking conversation do not contain relevant information for a specific section of the outline, leave that section blank. Do not invent or assume information.
-                            4. Concise Integration: Integrate the information from the conversation concisely and effectively into the resume. 
+                        update_history=updated_content,
+                        instructions="""
+                            1. Content Relevance: Ensure added content is high priority and relevant. Focus on information that directly supports the resume with the informative conversation.
+                            2. New Content: Add the new information at the end of the pre-existing content as the obvious choice.
+                            3. Concise Integration: Integrate the information from the conversation concisely and effectively into the resume. 
+                            4. Updates History: Content that have already been updated and do not further processing. Only the content here has to be excluded from processing.
+                            5. No Further Updates: When there are no more relevant information available to update the resume, return `None` for replacement i.e. {replacement : "None"}
+                            6. Important: Strictly adhere to the format provided. Aim for high priority short phrases that needs updates.
+                        """,
+                        format="""
+                            1. short_summary: short yet brief description on the changes made.
+                            2. content: exact phrases from the resume that needs to be replaced.
+                            3. reason: brief reasoning for replacement based on the information seeking conversation.
+                            4. replacement: phrases from the `content` with updates to be replaced.
                         """,
                     )
-                )
+                ),
+                format=Updates,
             )
-
-        return resume_outline
-        # pass
+            if not exec(resume_updates.replacement):
+                break
+            updated_content += resume_updates.content
+            self.resume_md.apply(resume_updates)
 
 
 if __name__ == "__main__":
