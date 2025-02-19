@@ -161,27 +161,19 @@ class ResumeWriterEngine:
             )
         )
 
-        # result = self.structured_llm(
-        #     prompt=str(
-        #         Prompt(
-        #             prompt=QUERY_PROMPT,
-        #             company_report=self.company_reports[0].model_dump(),
-        #         )
-        #     ),
-        #     format=SearchQueries,
-        # )
-        # search_queires = [query for item in result for query in item[1].queries[:2]]
-        # search_results = self.summarize_search_results(
-        #     self.search.run_many(queries=search_queires)
-        # )
-
-        # # Dump search_results to a file for testing
-        # with open("tests/search_results_dump.json", "w") as f:
-        #     json.dump(search_results, f, indent=4)
-
-        # Load the search_results from the dumped file for testing purposes
-        with open("tests/search_results_dump.json", "r") as f:
-            loaded_search_results = json.load(f)
+        result = self.structured_llm(
+            prompt=str(
+                Prompt(
+                    prompt=QUERY_PROMPT,
+                    company_report=self.company_reports[0].model_dump(),
+                )
+            ),
+            format=SearchQueries,
+        )
+        search_queires = [query for item in result for query in item[1].queries[:2]]
+        search_results = self.summarize_search_results(
+            self.search.run_many(queries=search_queires)
+        )
 
         self.company_portfolio = portfolio_outline
 
