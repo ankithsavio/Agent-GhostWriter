@@ -16,6 +16,7 @@ from resume_writer.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_P
 from researcher.search import SearXNG
 from researcher.vectordb import Qdrant
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pymupdf4llm as pymupdf
 import json
@@ -58,23 +59,29 @@ class ResumeWriterEngine:
         self.resume_path = "pdf/Resume.pdf"
         self.cover_letter_path = "pdf/Cover Letter.pdf"
         self.pdf_paths = [self.resume_path, self.cover_letter_path]
+        self.anonymizer = PresidioReversibleAnonymizer(
+            analyzed_fields=["PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "URL"]
+        )
         self.user_reports = self.load_files()
         self.company_reports = self.load_job()
         self.create_user_portfolio()
         self.create_company_portfolio()
 
     def load_files(self):
-        results = []
-        for file_path in self.pdf_paths:
-            result = self.pdf_llm(
-                prompt=str(Prompt(prompt=PDF_PROMPT)),
-                pdf_path=file_path,
+        def anonymize(path):
+            md = pymupdf.to_markdown(path)
+            doc = DiffDocument(self.anonymizer.anonymize(md))
+            return doc
+
+        docs = (anonymize(item) for item in [self.resume_path, self.cover_letter_path])
+        self.resume_doc, self.cover_letter_doc = docs
+        for doc in docs:
+            result = self.structured_llm(
+                prompt=str(Prompt(prompt=PDF_PROMPT, doc=doc)),
                 format=UserReport,
             )
-            dict_result = json.loads(result)
-            results.append(UserReport(**dict_result))
-        self.resume_md = DiffDocument(pymupdf.to_markdown(self.resume_path))
-        self.cover_letter_md = DiffDocument(pymupdf.to_markdown(self.cover_letter_path))
+            results.append(result)
+
         return results
 
     def load_job(self):
@@ -226,28 +233,12 @@ class ResumeWriterEngine:
     def workflow(self):
         topic = f"Personalized Resume for the role {self.company_reports[0].jobPosting.jobTitle} at {self.company_reports[0].company.name} for {self.user_reports[0].personal_information.name}"
 
-        def get_draft_outline():
-            resume_outline = self.llm(
-                str(
-                    Prompt(
-                        prompt=f"Generate an resume outline with only the topic headers for the role: {self.company_reports[0].jobPosting.jobTitle} based on the given user profile.",
-                        user_profile=self.user_portfolio,
-                        example="""
-                        # Title\n
-                        ## Subsection Title\n
-                        ### Subsubsection Title\n
-                        """,
-                    )
-                )
-            )
-            return resume_outline
-
         def get_personas():
             personas_result = self.structured_llm(
                 prompt=str(
                     Prompt(
                         prompt=f"You need to select a group of Resume editors who will work together to create a {topic}. \
-                        Each of them represents a different perspective , role , or affiliation for crafting the resume for the user."
+                        Each of them represents a different perspective , role , or affiliation for editing the resume for the user."
                     )
                 ),
                 format=Personas,
@@ -360,10 +351,6 @@ class ResumeWriterEngine:
 
             return worker.conversation.get_messages()
 
-        def get_refined_outline():
-            pass
-
-        # init_resume_outline = get_draft_outline() # skip for debugging
         personas = get_personas()
         conversations = []
         time.sleep(60)
@@ -390,7 +377,7 @@ class ResumeWriterEngine:
                 prompt=str(
                     Prompt(
                         prompt=f"You are a professional resume writer. Your task is to update the given resume for the role **{self.company_reports[0].jobPosting.jobTitle}** by using the information learned from the information-seeking conversation",
-                        resume=self.resume_md(),
+                        resume=self.resume_doc(),
                         information_seeking_conversation=formatted_conv,
                         update_history=updated_content,
                         instructions="""
@@ -398,7 +385,7 @@ class ResumeWriterEngine:
                             2. New Content: Add the new information at the end of the pre-existing content as the obvious choice.
                             3. Concise Integration: Integrate the information from the conversation concisely and effectively into the resume. 
                             4. Updates History: Content that have already been updated and do not further processing. Only the content here has to be excluded from processing.
-                            5. No Further Updates: When there are no more relevant information available to update the resume, return `None` for replacement i.e. {replacement : "None"}
+                            5. No Further Updates: When there are no more relevant information available to update the resume, return `None` for content i.e. {content : "None"}
                             6. Important: Strictly adhere to the format provided. Aim for high priority short phrases that needs updates.
                         """,
                         format="""
@@ -411,10 +398,10 @@ class ResumeWriterEngine:
                 ),
                 format=Updates,
             )
-            if not exec(resume_updates.replacement):
+            if not exec(resume_updates.content):
                 break
             updated_content += resume_updates.content
-            self.resume_md.apply(resume_updates)
+            self.resume_doc.apply(resume_updates)
 
 
 if __name__ == "__main__":
