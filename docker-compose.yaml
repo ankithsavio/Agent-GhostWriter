@@ -119,6 +119,21 @@ services:
               count: all
               capabilities: [gpu]
     command: serve && pull deepseek-r1:7b
+  
+  neo4j:
+    image: neo4j:latest
+    restart: unless-stopped
+    volumes:
+        - /$HOME/neo4j/logs:/logs
+        - /$HOME/neo4j/config:/config
+        - /$HOME/neo4j/data:/data
+        - /$HOME/neo4j/plugins:/plugins
+    environment:
+        - NEO4J_AUTH=${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-example_password}
+        - NEO4JLABS_PLUGINS=["apoc"]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
 networks:
   searxng:
 
