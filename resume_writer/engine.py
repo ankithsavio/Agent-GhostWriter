@@ -177,7 +177,7 @@ class ResumeWriterEngine:
 
         self.company_portfolio = portfolio_outline
 
-        for item in loaded_search_results:
+        for item in search_results:
             search_results_formatted = f"""<Query>\n{item['query']}\n</Query>\n<Result>\n{item['summary']}\n</Result>"""
             self.company_portfolio = self.llm(
                 str(
