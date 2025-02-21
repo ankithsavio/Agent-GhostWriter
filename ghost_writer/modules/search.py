@@ -1,12 +1,12 @@
-from typing import List
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 import requests
 import asyncio
-from crawl4ai import AsyncWebCrawler
-from llms.basellm import TogetherBaseLLM
+from typing import List
 from trafilatura import extract
 from urllib.parse import urlparse
+from crawl4ai import AsyncWebCrawler
 from researcher.vectordb import Qdrant
+from llms.basellm import TogetherBaseLLM
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
 class SearXNG:
@@ -19,7 +19,7 @@ class SearXNG:
         }
         self.chunk_size = 2000
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2000,
+            chunk_size=self.chunk_size,
             chunk_overlap=0,
             length_function=len,
             is_separator_regex=False,
@@ -48,10 +48,16 @@ class SearXNG:
         self.excluded_urls = ["linkedin.com"]
 
     def get_domain(self, url):
+        """
+        Get the domain of any url.
+        """
         parsed_url = urlparse(url)
         return parsed_url.netloc
 
     def get_urls(self, query, limit=5, **kwargs):
+        """
+        Use SearXNG to web search and get corresponding result urls
+        """
         self.params |= {"q": query, **kwargs}
         try:
             response = requests.get(self.instance, params=self.params)
@@ -72,6 +78,9 @@ class SearXNG:
             print(f"Unexpected JSON format: {e}")
 
     def clean_html(self, content):
+        """
+        Clean noisy html using trafilatura library
+        """
         return extract(
             content.html,
             include_tables=False,
@@ -80,6 +89,9 @@ class SearXNG:
         )
 
     def get_web_content(self, web_results: List[dict]) -> str:
+        """
+        Web scraper using playwright and crawl4ai
+        """
         urls = [item["url"] for item in web_results]
         self.scraped_urls.extend(urls)
 
@@ -116,6 +128,9 @@ class SearXNG:
         return asyncio.run(_crawl())
 
     def split_documents(self, content_list):
+        """
+        Turn documents in a list into chunks
+        """
         doc_list = []
         for content in content_list:
             chunks = self.text_splitter.split_text(content.get("content"))
@@ -143,6 +158,9 @@ class SearXNG:
         return hy_document
 
     def format_payloads(self, payloads):
+        """
+        Reformat payloads for Qdrant
+        """
         list_of_payload = [
             {
                 "title": result.payload["title"],
@@ -154,17 +172,23 @@ class SearXNG:
         return list_of_payload
 
     def run(self, query):
+        """
+        Run single query web search with RAG
+        """
         results = self.get_urls(query)
         content_list = self.get_web_content(results)
         self.vectordb.upsert_documents(
             self.collection_name, self.split_documents(content_list)
-        )  # split here
+        )
         result = self.vectordb.query_documents(
             self.collection_name, self.generate_fake_document(query)
         )
         return result
 
     def run_many(self, queries):
+        """
+        Run multiple query web search with RAG
+        """
         url_list = []
         for query in queries:
             result = self.get_urls(query)

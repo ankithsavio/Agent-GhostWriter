@@ -1,7 +1,7 @@
+from typing import List
+from llms.basellm import EmbeddingModel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
-from llms.basellm import EmbeddingModel
-from typing import List
 
 
 class Qdrant:
