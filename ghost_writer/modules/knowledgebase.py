@@ -1,3 +1,5 @@
+import os
+import re
 from pathlib import Path
 from typing import Union, List, Dict
 
@@ -16,7 +18,13 @@ from ghost_writer.modules.vectordb import Qdrant
 
 class KnowledgeBaseBuilder:
 
-    def __init__(self, source: Union[str, Path], source_name: str, model: BaseModel):
+    def __init__(
+        self,
+        source: Union[str, List[str]],
+        source_name: str,
+        model: BaseModel,
+        anonymize: bool,
+    ):
         self.anonymizer = PresidioReversibleAnonymizer(
             analyzed_fields=["PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "URL"]
         )
@@ -46,29 +54,51 @@ class KnowledgeBaseBuilder:
                 "",
             ],
         )
-        if isinstance(source, Path):
-            self.source = self.load_file(source)
-        else:
-            self.source = DiffDocument(source)
+        self.source = self.load_files(source, anonymize=anonymize)
 
-    def load_file(self, path):
+    def load_files(self, items, anonymize=True):
         """
         Load provided pdf file as markdown and remove personal information
         """
-        md = pymupdf.to_markdown(path)
-        document = DiffDocument(self.anonymizer.anonymize(md))
 
-        return document
+        def post_process(doc):
+            if anonymize:
+                return self.anonymizer.anonymize(doc)
+            else:
+                return doc
 
-    def structured_document(self, doc: DiffDocument, model: BaseModel, prompt: Prompt):
+        def load_file(path):
+            md = pymupdf.to_markdown(path)
+            # hacky fix
+            clean_md = re.sub(r"^#\s*", "", md)
+            anonymized_md = post_process(clean_md)
+            md = f"# {anonymized_md}"
+
+            return DiffDocument(md)
+
+        def load_txt(doc):
+            return DiffDocument(post_process(doc))
+
+        if isinstance(items, str):
+            if os.path.isfile(items):
+                return [load_file(items)]
+            else:
+                return [load_txt(items)]
+        elif isinstance(items, list):
+            results = []
+            for item in items:
+                results.append(*self.load_files(item))
+            return results
+
+    def structured_document(self, prompt: Prompt):
         """
         Return structured result for a document
         """
-        self.struct_doc = self.struct_llm(
+        response = self.struct_llm(
             prompt=str(prompt),
             format=self.model,
         )
-        return self.struct_doc
+        return response
 
     def query_vectordb(self, queries: List[str]):
         """
@@ -144,7 +174,7 @@ class KnowledgeBaseBuilder:
         )
 
         self.knowledge_document = self.llm(
-            str(gen_prompt) + str(Prompt(prompt=" ", outline=outline))
+            str(gen_prompt) + str(Prompt(prompt="\n", outline=outline))
         )
         self.split_and_upload_document(self.knowledge_document)
         return self.knowledge_document
@@ -185,9 +215,15 @@ class KnowledgeBaseBuilder:
 
         for item in search_results:
             search_results_formatted = f"""<Query>\n{item['query']}\n</Query>\n<Result>\n{item['summary']}\n</Result>"""
-            self.company_portfolio = self.llm(
+            self.knowledge_document = self.llm(
                 str(gen_prompt)
-                + str(Prompt(promtp=" ", search_results=search_results_formatted))
+                + str(
+                    Prompt(
+                        promtp="\n",
+                        outline=self.knowledge_document,
+                        search_results=search_results_formatted,
+                    )
+                )
             )
 
         self.split_and_upload_document(self.knowledge_document)
