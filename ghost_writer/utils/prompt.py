@@ -23,3 +23,6 @@ class Prompt:
 
     def __str__(self):
         return self.prompt + "\n" + "\n".join(self.dynamic_attr.values())
+
+    def format(self, **kwargs):
+        return Prompt(prompt=str(self).format(**kwargs))
