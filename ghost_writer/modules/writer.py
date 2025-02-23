@@ -18,7 +18,7 @@ def post_workflow(self, doc: DiffDocument, prompt: Prompt, conversation: List[Me
         resume_updates = llm(
             prompt=str(
                 Prompt(
-                    prompt=prompt,
+                    prompt=str(prompt),
                     resume=doc(),
                     information_seeking_conversation=formatted_conv,
                     update_history=updated_content,
@@ -40,7 +40,7 @@ def post_workflow(self, doc: DiffDocument, prompt: Prompt, conversation: List[Me
             ),
             format=Updates,
         )
-        if resume_updates.content is None:
+        if not resume_updates.content:
             break
         updated_content += resume_updates.content
         doc.apply(resume_updates)
