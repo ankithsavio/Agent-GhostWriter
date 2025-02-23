@@ -1,8 +1,8 @@
-from pymongo import MongoClient
+import os
 import uuid
 from typing import List
+from pymongo import MongoClient
 from pydantic import BaseModel
-import os
 from dotenv import load_dotenv
 
 load_dotenv(".env")
