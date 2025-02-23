@@ -7,8 +7,8 @@ import pymupdf4llm as pymupdf
 from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
 
 from pydantic import BaseModel
-from resume_writer.utils.diff import DiffDocument
-from resume_writer.utils.formats.prompt import Prompt
+from ghost_writer.utils.diff import DiffDocument
+from ghost_writer.utils.prompt import Prompt
 from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
