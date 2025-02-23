@@ -16,7 +16,7 @@ from ghost_writer.modules.writer import post_workflow
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 
 from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
-from resume_writer.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
+from app.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pymupdf4llm as pymupdf
 import time
