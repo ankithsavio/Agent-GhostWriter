@@ -12,6 +12,7 @@ from ghost_writer.utils.diff import Updates, DiffDocument
 from ghost_writer.modules.search import SearXNG
 from ghost_writer.modules.vectordb import Qdrant
 from ghost_writer.modules.storm import Storm
+from ghost_writer.modules.writer import post_workflow
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 
 from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
@@ -208,3 +209,7 @@ class WriterEngine:
                 conversations.append({worker: conversation_history})
 
         return conversations
+
+    def refine_document(self, conversations: List[Dict[Worker, Message]]):
+        # TODO : develop with frontend
+        pass
