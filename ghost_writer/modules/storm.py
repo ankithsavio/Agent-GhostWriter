@@ -1,10 +1,7 @@
-from typing import List
 from pydantic import BaseModel
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.persona import Personas
 from ghost_writer.utils.workers import Worker, Message
-from ghost_writer.modules.vectordb import Qdrant
-from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
 
 

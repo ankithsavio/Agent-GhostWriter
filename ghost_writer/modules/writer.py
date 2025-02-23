@@ -43,6 +43,6 @@ def post_workflow(self, doc: DiffDocument, prompt: Prompt, conversation: List[Me
         if resume_updates.content is None:
             break
         updated_content += resume_updates.content
-        self.resume_doc.apply(resume_updates)
+        doc.apply(resume_updates)
 
     return

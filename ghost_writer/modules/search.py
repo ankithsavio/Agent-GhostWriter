@@ -4,7 +4,7 @@ from typing import List
 from trafilatura import extract
 from urllib.parse import urlparse
 from crawl4ai import AsyncWebCrawler
-from researcher.vectordb import Qdrant
+from ghost_writer.modules.vectordb import Qdrant
 from llms.basellm import TogetherBaseLLM
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 

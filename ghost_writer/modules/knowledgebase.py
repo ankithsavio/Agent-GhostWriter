@@ -1,19 +1,15 @@
 import os
 import re
-from pathlib import Path
 from typing import Union, List, Dict
-
 import pymupdf4llm as pymupdf
-from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
-
 from pydantic import BaseModel
 from ghost_writer.utils.diff import DiffDocument
 from ghost_writer.utils.prompt import Prompt
-from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 from ghost_writer.modules.search import SearXNG
 from ghost_writer.modules.vectordb import Qdrant
+from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
+from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
 class KnowledgeBaseBuilder:
