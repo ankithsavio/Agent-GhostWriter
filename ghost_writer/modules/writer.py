@@ -5,21 +5,26 @@ from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.diff import Updates, DiffDocument
 
 
-def post_workflow(self, doc: DiffDocument, prompt: Prompt, conversation: List[Message]):
-    """
-    Iterative editing of document
-    """
+def post_workflow(
+    doc: DiffDocument,
+    prompt: Prompt,
+    conversation: List[Message],
+    max_iter: int = 10,
+):
+
     formatted_conv = "\n".join(
         f"role: {item.role}\ncontent: {item.content}" for item in conversation
     )
     updated_content = ""
     llm = GeminiBaseStructuredLLM()
-    while True:
-        resume_updates = llm(
+    iteration = 0
+    while iteration < max_iter:
+        iteration += 1
+        document_updates = llm(
             prompt=str(
                 Prompt(
                     prompt=str(prompt),
-                    resume=doc(),
+                    document=doc(),
                     information_seeking_conversation=formatted_conv,
                     update_history=updated_content,
                     instructions="""
@@ -40,9 +45,7 @@ def post_workflow(self, doc: DiffDocument, prompt: Prompt, conversation: List[Me
             ),
             format=Updates,
         )
-        if not resume_updates.content:
+        if not document_updates.content:
             break
-        updated_content += resume_updates.content
-        doc.apply(resume_updates)
-
-    return
+        updated_content += document_updates.content
+        yield document_updates

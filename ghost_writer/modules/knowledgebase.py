@@ -52,9 +52,15 @@ class KnowledgeBaseBuilder:
         )
         self.source = self.load_files(source, anonymize=anonymize)
 
-    def load_files(self, items, anonymize=True):
+    def load_files(self, items: Union[str, List[str]], anonymize: bool = True):
         """
-        Load provided pdf file as markdown and remove personal information
+        Load and process multiple files or text items into DiffDocument objects.
+        Args:
+            items (Union[str, List[str]]): File path(s) or text content to load.
+            anonymize (bool, optional): Whether to anonymize the content. Defaults to True.
+
+        Returns:
+            List[DiffDocument]: List of processed DiffDocument objects.
         """
 
         def post_process(doc):
@@ -88,8 +94,15 @@ class KnowledgeBaseBuilder:
 
     def structured_document(self, prompt: Prompt):
         """
-        Return structured result for a document
+        Generates a structured document based on the provided prompt using a language model.
+        Args:
+            prompt (Prompt): The prompt object containing the text to be structured.
+
+        Returns:
+            str: The structured response from the language model following the specified format.
+
         """
+
         response = self.struct_llm(
             prompt=str(prompt),
             format=self.model,
@@ -98,8 +111,16 @@ class KnowledgeBaseBuilder:
 
     def query_vectordb(self, queries: List[str]):
         """
-        Search your knowledge base
+        Queries the vector database with a list of queries and returns matching documents.
+        Args:
+            queries (List[str]): A list of query strings to search for in the vector database.
+
+        Returns:
+            List[Dict]: A list of dictionaries containing query results, where each dictionary has:
+                - 'query': The original query string
+                - 'result': A list of matching document texts (limited to 2 results per query)
         """
+
         result_list = []
         for query in queries:
             results = self.vectordb.query_documents(
@@ -116,16 +137,32 @@ class KnowledgeBaseBuilder:
 
     def split_and_upload_document(self, doc):
         """
-        Turn document into chunks and upload to qdrant collection
+        Splits a document into chunks and uploads them to the vector database.
+        Args:
+            doc (str): The document text to be split and uploaded
         """
+
         list_chunks = self.text_splitter.split_text(doc)
         list_of_payloads = [{"text": chunk} for chunk in list_chunks]
         self.vectordb.upsert_documents(self.collection_name, list_of_payloads)
 
     def summarize_search_results(self, results: List[Dict[str, str]]):
         """
-        Summarizing content from web search, to avoid context window problem.
+        Summarizes search results using an LLM to generate concise overviews of web search data.
+        Args:
+            results (List[Dict[str, str]]): A list of dictionaries containing search results.
+                Each dictionary should have:
+                - "query": The search query string
+                - "result": The raw search results to be summarized
+
+        Returns:
+            List[Dict[str, str]]: A list of dictionaries containing the original search data augmented with summaries.
+                Each dictionary contains:
+                - All original keys from the input dictionary
+                - "summary": The LLM-generated summary of the search results
+
         """
+
         summarized_results = []
         for result in results:
             combined_results = "\n\n".join(str(item) for item in result["result"])
@@ -152,7 +189,12 @@ class KnowledgeBaseBuilder:
 
     def create_knowledge_document(self, gen_prompt: Prompt):
         """
-        Create knowledge base document without research / web search
+        Create a knowledge document using an LLM based on the provided prompt and prepare for RAG.
+        Args:
+            gen_prompt (Prompt): A Prompt object containing the text prompt for knowledge base creation
+
+        Returns:
+            str: The generated knowledge document content.
         """
 
         outline = self.llm(
@@ -182,7 +224,14 @@ class KnowledgeBaseBuilder:
         gen_prompt: Prompt,
     ):
         """
-        Create knowledge base document with research / web search
+        Create a knowledge document using an LLM based on the provided prompt with web search and prepare for RAG.
+        Args:
+        search_model (BaseModel): Pydantic model defining the structure for search results
+        search_prompt (Prompt): Prompt template for generating search queries
+        gen_prompt (Prompt): Prompt template for generating content from search results
+
+        Returns:
+            str: The generated knowledge document
         """
         outline = self.llm(
             str(

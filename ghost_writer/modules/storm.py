@@ -13,8 +13,15 @@ class Storm:
 
     def get_personas(self, prompt: Prompt):
         """
-        Get personas as workers with conversation history
+        Generates a list of worker personas based on the given prompt.
+        Args:
+            prompt (Prompt): The prompt object containing requirements for generating personas.
+
+        Returns:
+            List[Worker]: A list of Worker objects representing different editor personas,
+                         each initialized with properties from the LLM response.
         """
+
         personas_result = self.struct_llm(
             prompt=str(prompt),
             format=Personas,
@@ -23,8 +30,15 @@ class Storm:
 
     def get_questions(self, worker: Worker, prompt: Prompt):
         """
-        Generate questions from the worker
+        Generates questions based on the given worker and prompt.
+        Args:
+            worker (Worker): A worker object
+            prompt (Prompt): The initial prompt to generate questions from.
+        Returns:
+            Message: A message object containing the generated response with the worker's persona as role.
+
         """
+
         response = self.llm(
             str(prompt)
             + str(
@@ -49,8 +63,16 @@ class Storm:
 
     def get_search_queries(self, worker: Worker, model: BaseModel, prompt: Prompt):
         """
-        Get search results from the knowledge base.
+        Generate search queries for a vector database based on a worker's conversation and prompt.
+        Args:
+            worker (Worker): The worker object
+            model (BaseModel): The base model to format the response
+            prompt (Prompt): Additional prompt parameters to guide query generation
+
+        Returns:
+            Response containing generated search queries formatted according to the specified model
         """
+
         last_message = worker.conversation.get_messages()[-1]
         response = self.struct_llm(
             str(
@@ -66,8 +88,12 @@ class Storm:
 
     def get_answers(self, worker: Worker, prompt: Prompt):
         """
-        Get search results answered by the expert.
+        Gets answers from the language model (LLM) based on the provided prompt and updates worker's conversation.
+        Args:
+            worker (Worker): The worker object
+            prompt (Prompt): The prompt object containing the prompt for the LLM
         """
+
         response = self.llm(str(prompt))
         message = Message(role="Expert", content=response)
         worker.conversation.add_message(message)
