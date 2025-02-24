@@ -179,3 +179,4 @@ qdrant_storage/
 tests/
 .vscode/
 pytest*
+!frontend/**
