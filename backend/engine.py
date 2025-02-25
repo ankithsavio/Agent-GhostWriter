@@ -2,9 +2,9 @@ from dotenv import load_dotenv
 
 load_dotenv(".env")
 from typing import List, Dict
-from app.models.user import UserReport
-from app.models.company import CompanyReport
-from app.models.search import SearchQueries, RAGQueries
+from backend.models.user import UserReport
+from backend.models.company import CompanyReport
+from backend.models.search import SearchQueries, RAGQueries
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.workers import Worker, Message
 from ghost_writer.modules.vectordb import Qdrant
@@ -12,7 +12,7 @@ from ghost_writer.modules.storm import Storm
 from ghost_writer.modules.writer import post_workflow
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 
-from app.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
+from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
