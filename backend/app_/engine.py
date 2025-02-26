@@ -19,25 +19,26 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 class WriterEngine:
 
     def __init__(self):
-        self.resume_path = "pdf/Resume.pdf"
-        self.cover_letter_path = "pdf/Cover Letter.pdf"
-        self.job_description = JOB_DESC
         self.user_collection_name = "user"
-        self.user_knowledge_base = KnowledgeBaseBuilder(
-            source=[self.resume_path, self.cover_letter_path],
-            source_name=self.user_collection_name,
-            model=UserReport,
-            anonymize=True,
-        )
         self.company_collection_name = "company"
+        self.workflow = Storm()
+        self.vectordb = Qdrant()
+
+    def get_job_kb(self, text):
         self.company_knowledge_base = KnowledgeBaseBuilder(
-            source=self.job_description,
+            source=text,
             source_name=self.company_collection_name,
             model=CompanyReport,
             anonymize=False,  # for web search
         )
-        self.workflow = Storm()
-        self.vectordb = Qdrant()
+
+    def get_user_kb(self, files):
+        self.user_knowledge_base = KnowledgeBaseBuilder(
+            source=files,
+            source_name=self.user_collection_name,
+            model=UserReport,
+            anonymize=True,
+        )
 
     def load_reports(self):
         docs = self.user_knowledge_base.source
@@ -204,6 +205,10 @@ class WriterEngine:
 
         return conversations
 
-    def refine_document(self, conversations: List[Dict[Worker, Message]]):
+    def run(self):
         # TODO : develop with frontend
+        self.load_reports()
+        self.create_portfolios()
+        # implement as sse
+        self.orchestrate()
         pass
