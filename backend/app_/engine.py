@@ -190,12 +190,12 @@ class WriterEngine:
 
             return worker.conversation.get_messages()
 
-        personas = self.workflow.get_personas(prompt=persona_prompt)
+        self.personas = self.workflow.get_personas(prompt=persona_prompt)
         conversations = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_results = {
                 executor.submit(conversation_simulation, worker): worker
-                for worker in personas
+                for worker in self.personas
             }
 
             for future in as_completed(future_results):
@@ -209,6 +209,5 @@ class WriterEngine:
         # TODO : develop with frontend
         self.load_reports()
         self.create_portfolios()
-        # implement as sse
         self.orchestrate()
         pass
