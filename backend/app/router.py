@@ -1,16 +1,22 @@
 from fastapi import APIRouter, File, UploadFile, WebSocket, BackgroundTasks
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from typing import List
 from backend.engine import WriterEngine
+from tests.test_engine import FakeEngine
 import asyncio
 import os
+
+
+class TextInput(BaseModel):
+    text: str
 
 
 class EngineRouter:
 
     def __init__(self):
         self.router = APIRouter()
-        self.engine = WriterEngine()
+        self.engine = FakeEngine()
 
         self.active_websockets = {"personas": {}, "documents": {}}
         self.portfolio_event = asyncio.Event()
@@ -25,25 +31,38 @@ class EngineRouter:
             doc1: UploadFile = File(...),
             doc2: UploadFile = File(...),
         ):
+            """
+            Endpoint to handle file uploads and process documents in the background.
+
+            Returns:
+                JSONResponse: Response containing success message if successful,
+                            or error message with 500 status code if processing fails
+            """
             try:
 
-                bgtask.add_task(self.gen_user_kb([doc1, doc2]))
+                bgtask.add_task(self.gen_user_kb, [doc1, doc2])
 
                 return JSONResponse(
                     {
                         "message": "Files processed successfully",
-                        "filenames": [doc1.filename, doc2.filename],
                     }
                 )
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
         @self.router.post("/api/upload_text")
-        async def upload_text(bgtask: BackgroundTasks, text: str):
+        async def upload_text(text: TextInput, bgtask: BackgroundTasks):
+            """
+            Endpoint to handle uploading job description (text) and start application in the background.
+
+            Returns:
+                JSONResponse: Response containing success message if successful,
+                            or error message with 500 status code if processing fails
+            """
             try:
-                bgtask.add_task(self.engine.get_job_kb(text))
-                bgtask.add_task(self.get_portfolios())
-                bgtask.add_task(self.get_personas())
+                bgtask.add_task(self.engine.get_job_kb, text.text)
+                bgtask.add_task(self.get_portfolios)
+                bgtask.add_task(self.get_personas)
                 return JSONResponse(
                     {
                         "message": "Text processed successfully",
@@ -55,6 +74,15 @@ class EngineRouter:
 
         @self.router.get("/research_doc")
         async def get_job_research():
+            """
+            Retrieves the job research data from the agentic research.
+
+            Returns:
+                JSONResponse: Response containing either:
+                    - The company portfolio data (str)
+                    - An error message with a 500 status code on failure
+            """
+
             try:
                 if not self.portfolio_event.is_set():
                     await self.portfolio_event.wait()
@@ -64,17 +92,37 @@ class EngineRouter:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
         @self.router.get("/conversations")
-        async def get_conversation_list():
+        async def get_conversation_list(bgtask: BackgroundTasks):
+            """
+            Retrieves the list of personas from the storm workflow.
+
+            Returns:
+                JSONResponse: Response containing either:
+                    - List[Persona(persona: str)]
+                    - An error message with a 500 status code on failure
+            """
             try:
                 if not self.persona_event.is_set():
                     await self.persona_event.wait()
+                # bgtask.add_task(asyncio.run, monitor_queue())
 
-                return JSONResponse(content={"content": self.personas})
+                return JSONResponse(
+                    content={"content": [persona.persona for persona in self.personas]}
+                )
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
         @self.router.websocket("/ws/conversation/{persona_name}")
         async def get_conversations(websocket: WebSocket, persona_name: str):
+            """
+            Websocket to retrieve the conversation histroy of a persona from the database.
+            The Client uses the list of personas to dynamically create the websockets.
+
+            Returns:
+                JSONResponse: Response containing either:
+                    - List[Message(role: str, content: str)]
+                    - An error message with a 500 status code on failure
+            """
             if not self.persona_event.is_set():
                 await self.persona_event.wait()
 
@@ -94,21 +142,30 @@ class EngineRouter:
                 del self.active_websockets["personas"][persona_name]
 
         async def monitor_queue():
+            """
+            Function to monitor a queue and send real time conversation updates through active websockets.
+            """
             while True:
                 try:
-                    worker = await self.engine.workflow.queue.get()
+                    worker = self.engine.workflow.queue.get()
                     websocket = self.active_websockets["personas"][worker.persona]
                     await websocket.send_json(worker.conversation.get_messages())
                     self.engine.workflow.queue.task_done()
                 except Exception as e:
-                    print(f"Error sending message from {worker.persona}: {e}")
-                    del self.active_websockets["personas"][worker.persona]
-                    self.engine.workflow.queue.task_done()
-
-        asyncio.create_task(monitor_queue())
+                    print(f"Error sending message from: {e}")
+                    # del self.active_websockets["personas"][worker.persona]
+                    # self.engine.workflow.queue.task_done()
 
         @self.router.websocket("/api/document/{number}")
         async def view_documents(websocket: WebSocket, number: int):
+            """
+            Websocket to retrieve the user documents, supports sending constant updates.
+
+            Returns:
+                JSONResponse: Response containing either:
+                    - List[Message(role: str, content: str)]
+                    - An error message with a 500 status code on failure
+            """
             await self.document_event.wait()
             await websocket.accept()
             self.active_websockets["documents"][number] = websocket
@@ -119,7 +176,8 @@ class EngineRouter:
     def gen_user_kb(self, docs: List[UploadFile]):
         file_paths = []
         for doc in docs:
-            content = asyncio.create_task(doc.read())
+            # threadpool used here
+            content = asyncio.run(doc.read())
             file_path = os.path.join("./", doc.filename)
 
             with open(file_path, "wb") as file:
