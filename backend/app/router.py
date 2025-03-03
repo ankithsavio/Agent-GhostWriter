@@ -22,6 +22,7 @@ class EngineRouter:
         self.portfolio_event = asyncio.Event()
         self.document_event = asyncio.Event()
         self.persona_event = asyncio.Event()
+        self.final_event = asyncio.Event()
         self.register_routes()
 
     def register_routes(self):
@@ -39,8 +40,15 @@ class EngineRouter:
                             or error message with 500 status code if processing fails
             """
             try:
-
-                bgtask.add_task(self.gen_user_kb, [doc1, doc2])
+                files = []
+                for doc in [doc1, doc2]:
+                    content = await doc.read()
+                    file_path = os.path.join(
+                        "backend/uploads/",
+                        doc.filename,
+                    )
+                    files.append((content, file_path))
+                bgtask.add_task(self.gen_user_kb, files)
 
                 return JSONResponse(
                     {
@@ -63,6 +71,7 @@ class EngineRouter:
                 bgtask.add_task(self.engine.get_job_kb, text.text)
                 bgtask.add_task(self.get_portfolios)
                 bgtask.add_task(self.get_personas)
+                bgtask.add_task(asyncio.run, monitor_queue()) # TODO fix
                 return JSONResponse(
                     {
                         "message": "Text processed successfully",
@@ -104,7 +113,6 @@ class EngineRouter:
             try:
                 if not self.persona_event.is_set():
                     await self.persona_event.wait()
-                # bgtask.add_task(asyncio.run, monitor_queue())
 
                 return JSONResponse(
                     content={"content": [persona.persona for persona in self.personas]}
@@ -141,7 +149,7 @@ class EngineRouter:
             finally:
                 del self.active_websockets["personas"][persona_name]
 
-        async def monitor_queue():
+        def monitor_queue():
             """
             Function to monitor a queue and send real time conversation updates through active websockets.
             """
@@ -149,7 +157,7 @@ class EngineRouter:
                 try:
                     worker = self.engine.workflow.queue.get()
                     websocket = self.active_websockets["personas"][worker.persona]
-                    await websocket.send_json(worker.conversation.get_messages())
+                    asyncio.run(websocket.send_json(worker.conversation.get_messages()))
                     self.engine.workflow.queue.task_done()
                 except Exception as e:
                     print(f"Error sending message from: {e}")
@@ -168,24 +176,51 @@ class EngineRouter:
             """
             await self.document_event.wait()
             await websocket.accept()
-            self.active_websockets["documents"][number] = websocket
+            self.active_websockets["documents"][number - 1] = websocket
             await websocket.send_text(
-                self.engine.user_knowledge_base.source[number](deanonymize=True)
+                self.engine.user_knowledge_base.source[number - 1](deanonymize=True)
             )
 
-    def gen_user_kb(self, docs: List[UploadFile]):
-        file_paths = []
-        for doc in docs:
-            # threadpool used here
-            content = asyncio.run(doc.read())
-            file_path = os.path.join("./", doc.filename)
+        @self.router.websocket("/ws/suggestions/{persona_name}/{doc_number}")
+        async def get_suggestions(
+            websocket: WebSocket, persona_name: str, doc_number: int
+        ):
+            """
+            Websocket endpoint to receive document suggestions from a specific persona.
 
+            Returns:
+                JSON objects containing Updates for DiffDocument.
+            """
+            await websocket.accept()
+
+            if not self.final_event.is_set():
+                await self.final_event.wait()
+
+            try:
+                for persona in self.personas:
+                    if persona.persona == persona_name:
+                        suggestions = self.engine.get_suggestions_from_persona(
+                            persona, doc_number
+                        )
+                        for suggestion in suggestions:
+                            await websocket.send_json(suggestion)
+                        break
+
+                while True:
+                    await asyncio.sleep(0.1)
+            except Exception as e:
+                print(f"Suggestion connection closed for {persona_name}: {e}")
+
+    def gen_user_kb(self, docs: List[bytes]):
+        file_paths = []
+        for doc, file_path in docs:
+            content = doc
             with open(file_path, "wb") as file:
                 file.write(content)
-
             file_paths.append(file_path)
+
         self.document_event.clear()
-        self.engine.get_job_kb(file_paths)
+        self.engine.get_user_kb(file_paths)
         self.document_event.set()
 
     def get_portfolios(self):
@@ -198,3 +233,5 @@ class EngineRouter:
         self.engine.set_prompts()
         self.personas = self.engine.generate_personas()
         self.persona_event.set()
+        self.final_event.clear()
+        self.final_event.set()
