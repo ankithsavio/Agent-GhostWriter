@@ -36,10 +36,9 @@ def post_workflow(
                             6. Important: Strictly adhere to the format provided. Aim for high priority short phrases that needs updates.
                         """,
                     format="""
-                            1. short_summary: short yet brief description on the changes made.
-                            2. content: exact phrases from the document that needs to be replaced.
-                            3. reason: brief reasoning for replacement based on the information seeking conversation.
-                            4. replacement: phrases from the `content` with updates to be replaced.
+                            1. content: exact phrases from the document that needs to be replaced.
+                            2. reason: brief reasoning for replacement based on the information seeking conversation.
+                            3. replacement: phrases from the `content` with updates to be replaced.
                         """,
                 )
             ),
@@ -48,4 +47,5 @@ def post_workflow(
         if not document_updates.content:
             break
         updated_content += document_updates.content
-        yield document_updates
+        doc.apply(document_updates)
+        yield document_updates.model_dump()

@@ -1,8 +1,8 @@
 from pydantic import BaseModel
+from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
 
 
 class Updates(BaseModel):
-    short_summary: str
     content: str
     reason: str
     replacement: str
@@ -10,12 +10,16 @@ class Updates(BaseModel):
 
 class DiffDocument:
 
-    def __init__(self, doc: str):
+    def __init__(self, doc: str, anonymizer: PresidioReversibleAnonymizer = None):
         self.document = doc
+        self.anonymizer = anonymizer
 
     def apply(self, update: Updates):
         self.document = self.document.replace(update.content, update.replacement)
-        return update.short_summary, update.reason
+        return update.reason
 
-    def __call__(self):
-        return self.document
+    def __call__(self, deanonymize: bool = False):
+        if deanonymize and self.anonymizer:
+            return self.anonymizer.deanonymize(self.document)
+        else:
+            return self.document
