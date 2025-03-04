@@ -1,15 +1,18 @@
 import os
 import re
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Type, TypeVar
 import pymupdf4llm as pymupdf
 from pydantic import BaseModel
 from ghost_writer.utils.diff import DiffDocument
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.modules.search import SearXNG
 from ghost_writer.modules.vectordb import Qdrant
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
 from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class KnowledgeBaseBuilder:
@@ -76,10 +79,10 @@ class KnowledgeBaseBuilder:
             anonymized_md = post_process(clean_md)
             md = f"# {anonymized_md}"
 
-            return DiffDocument(md)
+            return DiffDocument(md, self.anonymizer)
 
         def load_txt(doc):
-            return DiffDocument(post_process(doc))
+            return DiffDocument(post_process(doc), self.anonymizer)
 
         if isinstance(items, str):
             if os.path.isfile(items):
@@ -219,10 +222,10 @@ class KnowledgeBaseBuilder:
 
     def create_knowledge_document_with_research(
         self,
-        search_model: BaseModel,
+        search_model: Type[T],
         search_prompt: Prompt,
         gen_prompt: Prompt,
-    ):
+    ) -> T:
         """
         Create a knowledge document using an LLM based on the provided prompt with web search and prepare for RAG.
         Args:
@@ -233,43 +236,53 @@ class KnowledgeBaseBuilder:
         Returns:
             str: The generated knowledge document
         """
-        outline = self.llm(
-            str(
-                Prompt(
-                    prompt=f"Generate an portfolio outline with only the topic headers and sources by following the pydantic config : {str(self.model.model_fields)}",
-                    example="""
-                    # Title\n
-                    ## Subsection Title\n
-                    ### Subsubsection Title\n
-                    # Sources
-                    """,
-                )
-            )
-        )
-        result = self.struct_llm(
+        search_queries = self.struct_llm(
             prompt=str(search_prompt),
             format=search_model,
         )
 
-        search_queires = [query for item in result for query in item[1].queries[:2]]
-        search_results = self.summarize_search_results(
-            self.search.run_many(queries=search_queires)
-        )
+        topic_tuples = [(topic[0], topic[1].queries) for topic in search_queries]
 
-        self.knowledge_document = outline
+        self.knowledge_document = ""
 
-        for item in search_results:
-            search_results_formatted = f"""<Query>\n{item['query']}\n</Query>\n<Result>\n{item['summary']}\n</Result>"""
-            self.knowledge_document = self.llm(
-                str(gen_prompt)
-                + str(
-                    Prompt(
-                        promtp="\n",
-                        outline=self.knowledge_document,
-                        search_results=search_results_formatted,
+        def generate_article_section(topic, queries):
+
+            search_results = self.summarize_search_results(
+                self.search.run_many(queries=queries)
+            )
+
+            document_curation = f"#{topic}\n\n"
+
+            for item in search_results:
+                search_results_formatted = f"""<Query>\n{item['query']}\n</Query>\n<Result>\n{item['summary']}\n</Result>"""
+                document_curation = self.llm(
+                    str(gen_prompt)
+                    + str(
+                        Prompt(
+                            promtp="\n",
+                            section=topic,
+                            outline=document_curation,
+                            search_results=search_results_formatted,
+                        )
                     )
                 )
-            )
+            return document_curation
+
+        with ThreadPoolExecutor(len(search_model.model_fields())) as executor:
+
+            future_topics = {
+                executor.submit(generate_article_section, topic, queries): topic
+                for topic, queries in topic_tuples
+            }
+
+            article_dict = {}
+            for future in as_completed(future_topics):
+                topic = future_topics[future]
+                section = future.result()
+                article_dict[topic] = section
+
+        for topic, _ in topic_tuples:
+            self.knowledge_document += article_dict[topic]
 
         self.split_and_upload_document(self.knowledge_document)
         return self.knowledge_document
