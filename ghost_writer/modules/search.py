@@ -1,3 +1,4 @@
+import uuid
 import requests
 import asyncio
 from typing import List
@@ -40,7 +41,7 @@ class SearXNG:
                 "",
             ],
         )
-        self.collection_name = "WebSearch"
+        self.collection_name = "WebSearch" + str(uuid.uuid4())
 
         self.vectordb = Qdrant()
         self.vectordb.create_collection(self.collection_name)
