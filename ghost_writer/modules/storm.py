@@ -1,3 +1,4 @@
+import queue
 from pydantic import BaseModel
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.persona import Personas
@@ -10,6 +11,7 @@ class Storm:
     def __init__(self):
         self.llm = TogetherBaseLLM()
         self.struct_llm = GeminiBaseStructuredLLM()
+        self.queue = queue.Queue()
 
     def get_personas(self, prompt: Prompt):
         """
@@ -59,6 +61,7 @@ class Storm:
         )
         message = Message(role=worker.persona, content=response)
         worker.conversation.add_message(message)
+        self.push_update(worker)
         return message
 
     def get_search_queries(self, worker: Worker, model: BaseModel, prompt: Prompt):
@@ -97,3 +100,7 @@ class Storm:
         response = self.llm(str(prompt))
         message = Message(role="Expert", content=response)
         worker.conversation.add_message(message)
+        self.push_update(worker)
+
+    def push_update(self, worker: Worker):
+        self.queue.put(worker)
