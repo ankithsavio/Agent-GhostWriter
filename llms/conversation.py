@@ -39,7 +39,9 @@ class ConversationHistory:
     def get_messages(self):
         messages = self.collection.find({"session_id": self.session_id})
         return [
-            Message(role=message["data"]["role"], content=message["data"]["content"])
+            Message(
+                role=message["data"]["role"], content=message["data"]["content"]
+            ).model_dump()
             for message in messages
         ]
 
