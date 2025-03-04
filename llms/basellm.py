@@ -242,7 +242,7 @@ class GeminiBaseStructuredLLM:
         }
 
         try:
-            response = self.client.chat.completions.create(**self.config)
+            response = self.client.beta.chat.completions.parse(**self.config)
             return response
         except openai.RateLimitError as e:
             raise
