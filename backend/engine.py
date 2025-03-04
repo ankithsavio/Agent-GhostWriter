@@ -1,12 +1,14 @@
 from dotenv import load_dotenv
 
 load_dotenv(".env")
+
 from typing import List, Dict
 from backend.models.user import UserReport
 from backend.models.company import CompanyReport
 from backend.models.search import SearchQueries, RAGQueries
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.workers import Worker, Message
+from ghost_writer.utils.logger import logger
 from ghost_writer.modules.vectordb import Qdrant
 from ghost_writer.modules.storm import Storm
 from ghost_writer.modules.writer import post_workflow
@@ -31,6 +33,7 @@ class WriterEngine:
             model=CompanyReport,
             anonymize=False,  # for web search
         )
+        logger.info("Company Knowledge Base Created")
 
     def get_user_kb(self, files):
         self.user_knowledge_base = KnowledgeBaseBuilder(
@@ -39,6 +42,7 @@ class WriterEngine:
             model=UserReport,
             anonymize=True,
         )
+        logger.info("User Knowledge Base Created")
 
     def load_reports(self):
         docs = self.user_knowledge_base.source
@@ -48,6 +52,7 @@ class WriterEngine:
                 prompt=Prompt(prompt=PDF_PROMPT, doc=doc())
             )
             self.user_report.append(result)
+        logger.info("User Report Loaded")
 
         docs = self.company_knowledge_base.source
         self.company_report = []
@@ -56,6 +61,8 @@ class WriterEngine:
                 prompt=Prompt(prompt=JD_PROMPT, doc=doc())
             )
             self.company_report.append(result)
+
+        logger.info("Company Report Loaded")
 
     def create_portfolios(self):
         portfolio_prompt = Prompt(
@@ -66,19 +73,20 @@ class WriterEngine:
         self.user_portfolio = self.user_knowledge_base.create_knowledge_document(
             gen_prompt=portfolio_prompt
         )
+        logger.info("User Portfolio Created")
 
         research_prompt = Prompt(
             prompt=QUERY_PROMPT,
             company_report=self.company_report[0].model_dump(),
         )
         portfolio_prompt = Prompt(
-            prompt=f"You are a **technical writer** specializing in company reports. Your task is to expand the report for **{self.company_report[0].company.name}** by filling in sections of the provided outline using the following search results.",
+            prompt=f"You are a **technical writer** specializing in company reports. Your task is to write specific sections of the report for **{self.company_report[0].company.name}** using the web search results.",
             instructions=f"""
             1. Content Relevance: Ensure all added content is directly relevant to **{self.company_report[0].company.name}**. Do not include information about other companies or irrelevant topics. Focus on information that directly supports the outline sections.
-            2. Outline Adherence: Strictly adhere to the provided outline structure. Only fill in content under the appropriate headings. Do not add new sections or deviate from the existing outline.
-            3. Source Citations: Cite sources using square brackets and numbers, e.g., `[1]`, `[2]`. If a source is already cited in the existing report, reuse the same source number.
-            4. No Irrelevant Information: If the search results do not contain relevant information for a specific section of the outline, leave that section blank. Do not invent or assume information. Maintain the original outline structure even if some sections remain unfilled.
-            5. Concise Integration: Integrate the information from the search results concisely and effectively into the report. 
+            2. Subsection and Content: For the provided query and section, create a single appropriate subsection using the format - ### Subsection Title followed by its content. Generate this content directly.
+            3. Outline Adherence: Strictly adhere to the provided section and outline. Do not add new sections, focus only on the given section and appropriately extend the provided outline.
+            4. No Irrelevant Information: If the search results do not contain relevant information for the chosen specific section of the outline, leave that section blank. Do not invent or assume information.
+            5. Concise Integration: Integrate the information from the search results concisely and effectively into the outline. 
             """,
         )
         self.company_portfolio = (
@@ -88,6 +96,7 @@ class WriterEngine:
                 gen_prompt=portfolio_prompt,
             )
         )
+        logger.info("Company Portfolio Created")
 
     def cross_knowledge_base_query(self, entity, queries: List[str]):
         """
@@ -172,13 +181,15 @@ class WriterEngine:
             4. Keep your answer concise.
             """,
         )
+        logger.info("Prompts are set for orchestration")
 
     def generate_personas(self):
-
-        return self.workflow.get_personas(prompt=self.persona_prompt)
+        personas = self.workflow.get_personas(prompt=self.persona_prompt)
+        logger.info("Personas successfully created")
+        return personas
 
     def conversation_simulation(self, worker: Worker):
-
+        logger.info("Initiating conversation simulation")
         iterations = 10
         for _ in range(iterations):
             message = self.workflow.get_questions(worker, self.question_prompt)
@@ -192,10 +203,11 @@ class WriterEngine:
             self.workflow.get_answers(
                 worker, self.answer_prompt.format(search_results=results)
             )
-
+        logger.info("Conversation simulation completed")
         return worker.conversation.get_messages()
 
     def parallel_conversation(self, personas: List[Worker]):
+        logger.info("Initiating Parallel Conversation")
         conversations = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_results = {
@@ -207,5 +219,5 @@ class WriterEngine:
                 worker = future_results[future]
                 conversation_history = future.result()
                 conversations.append({worker: conversation_history})
-
+        logger.info("Parallel Conversation Completed")
         return conversations
