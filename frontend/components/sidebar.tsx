@@ -3,14 +3,16 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 interface SidebarProps {
-  currentPage: "page1" | "page2"
-  onPageChange: (page: "page1" | "page2") => void
+  currentPage: "page1" | "page2" | "page3" | "page4"
+  onPageChange: (page: "page1" | "page2" | "page3" | "page4") => void
 }
 
 export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const buttons = [
     { id: "page1", label: "Function 1" },
     { id: "page2", label: "Function 2" },
+    { id: "page3", label: "Function 3" },
+    { id: "page4", label: "Function 4" },
   ]
 
   return (
@@ -29,7 +31,7 @@ export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                 key={button.id}
                 variant={currentPage === button.id ? "default" : "ghost"}
                 className="w-full justify-start"
-                onClick={() => onPageChange(button.id as "page1" | "page2")}
+                onClick={() => onPageChange(button.id as "page1" | "page2" | "page3" | "page4")}
               >
                 {button.label}
               </Button>
@@ -46,11 +48,11 @@ export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
               key={button.id}
               variant={currentPage === button.id ? "default" : "ghost"}
               className="w-full justify-start"
-              onClick={() => onPageChange(button.id as "page1" | "page2")}
-            >
-              {button.label}
-            </Button>
-          ))}
+              onClick={() => onPageChange(button.id as "page1" | "page2" | "page3" | "page4")}
+              >
+                {button.label}
+              </Button>
+            ))}
         </div>
       </nav>
     </>

@@ -1,69 +1,174 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
-import { uploadFile, processText, initializeSocket, getProgressStages } from "@/lib/api"
-import type { Socket } from "socket.io-client"
+import { Loader2 } from "lucide-react"
+import { ChatDisplay } from "@/components/ui/chat-display"
+import * as api from "@/lib/api"
+
+const API_BASE_URL = "http://localhost:8080"
+const WS_BASE_URL = "ws://localhost:8080"
+
+interface Message {
+  role: string
+  content: string
+}
 
 export function Page1() {
+  const { toast } = useToast()
   const [text, setText] = useState("")
-  const [files, setFiles] = useState({ doc1: "", doc2: "" })
-  const [progressStages, setProgressStages] = useState<string[]>([])
-  const [currentStage, setCurrentStage] = useState("")
-  const [socket, setSocket] = useState<Socket | null>(null)
+  const [files, setFiles] = useState<{ doc1: File | null; doc2: File | null }>({ doc1: null, doc2: null })
+  const [conversations, setConversations] = useState<Record<string, Message[]>>({})
+  const [conversationNames, setConversationNames] = useState<string[]>([])
+  const [activeTab, setActiveTab] = useState<string>("")
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef1 = useRef<HTMLInputElement>(null)
+  const fileInputRef2 = useRef<HTMLInputElement>(null)
+  const socketsRef = useRef<Record<string, WebSocket>>({})
 
   useEffect(() => {
-    const newSocket = initializeSocket()
-    setSocket(newSocket)
+    async function fetchConversationNames() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/conversations`)
+        if (!response.ok) {
+          throw new Error("Failed to fetch conversation names")
+        }
+        const data = await response.json()
+        const names = data.content || [] // Extract the content array
+        setConversationNames(names)
+        if (names.length > 0) {
+          setActiveTab(names[0])
+        }
+      } catch (error) {
+        console.error("Error fetching conversation names:", error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch conversation names. Please try again later.",
+        })
+      }
+    }
 
-    newSocket.on("processing_update", (data: { stage: string; message: string }) => {
-      setCurrentStage(data.stage)
+    fetchConversationNames()
+  }, [toast])
+
+  useEffect(() => {
+    function createWebSocketForConversation(conversationName: string) {
+      const newSocket = new WebSocket(`${WS_BASE_URL}/ws/conversation/${conversationName}`)
+
+      newSocket.onmessage = (event) => {
+        const data: Message[] = JSON.parse(event.data)
+        setConversations((prevConversations) => ({
+          ...prevConversations,
+          [conversationName]: data,
+        }))
+      }
+
+      newSocket.onopen = () => {
+        console.log(`WebSocket connection opened for ${conversationName}`)
+      }
+
+      newSocket.onclose = () => {
+        console.log(`WebSocket connection closed for ${conversationName}`)
+        toast({
+          variant: "destructive",
+          title: "Connection Closed",
+          description: `The connection for ${conversationName} has been closed. Please refresh the page.`,
+        })
+      }
+
+      newSocket.onerror = (error) => {
+        console.error(`WebSocket error for ${conversationName}:`, error)
+        toast({
+          variant: "destructive",
+          title: "Connection Error",
+          description: `An error occurred with the WebSocket connection for ${conversationName}. Please try again later.`,
+        })
+      }
+
+      socketsRef.current[conversationName] = newSocket
+    }
+
+    conversationNames.forEach((name) => {
+      createWebSocketForConversation(name)
     })
 
-    getProgressStages()
-      .then((stages) => {
-        setProgressStages(stages)
-        if (stages.length > 0) {
-          setCurrentStage(stages[0])
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to fetch progress stages:", error)
-      })
-
     return () => {
-      newSocket.disconnect()
+      Object.values(socketsRef.current).forEach((socket) => socket.close())
     }
-  }, [])
+  }, [conversationNames, toast])
 
-  const handleFileUpload = (docNumber: 1 | 2) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, docNumber: 1 | 2) => {
     const file = e.target.files?.[0]
     if (file) {
-      try {
-        const result = await uploadFile(file, `doc${docNumber}`)
-        setFiles((prev) => ({
-          ...prev,
-          [`doc${docNumber}`]: result.filename,
-        }))
-      } catch (error) {
-        console.error("File upload failed:", error)
-      }
+      setFiles((prev) => ({
+        ...prev,
+        [`doc${docNumber}`]: file,
+      }))
     }
   }
 
-  const handleProcessText = async () => {
-    if (text.trim()) {
-      try {
-        await processText(text)
-      } catch (error) {
-        console.error("Text processing failed:", error)
-      }
+  async function handleDocumentsUpload() {
+    if (!files.doc1 || !files.doc2) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select both documents before uploading.",
+      })
+      return
     }
+
+    try {
+      setUploading(true)
+      await api.uploadDocuments(files.doc1, files.doc2)
+      toast({
+        title: "Success",
+        description: "Documents uploaded successfully",
+      })
+      // Reset file inputs
+      if (fileInputRef1.current) fileInputRef1.current.value = ""
+      if (fileInputRef2.current) fileInputRef2.current.value = ""
+      setFiles({ doc1: null, doc2: null })
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to upload documents",
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleTextSubmit() {
+    if (!text.trim()) return
+
+    try {
+      setUploading(true)
+      await api.uploadText(text)
+      toast({
+        title: "Success",
+        description: "Text uploaded successfully",
+      })
+      setText("")
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to upload text",
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value)
   }
 
   return (
@@ -73,36 +178,59 @@ export function Page1() {
           <h2 className="text-lg font-semibold">Enter Text</h2>
           <Textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleTextChange}
             className="min-h-[200px]"
             placeholder="Enter your text here..."
           />
-          <Button onClick={handleProcessText}>Process Text</Button>
+          <Button onClick={handleTextSubmit} disabled={uploading || !text.trim()}>
+            {uploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              "Submit Text"
+            )}
+          </Button>
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold">Upload Documents</h2>
             <div className="grid gap-4">
-              {[1, 2].map((docNumber) => (
-                <div key={docNumber}>
-                  <input
-                    type="file"
-                    id={`doc${docNumber}`}
-                    className="hidden"
-                    onChange={handleFileUpload(docNumber as 1 | 2)}
-                  />
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => document.getElementById(`doc${docNumber}`)?.click()}
-                  >
-                    Upload Doc {docNumber}
-                  </Button>
-                  {files[`doc${docNumber}` as "doc1" | "doc2"] && (
-                    <p className="mt-2 text-sm text-muted-foreground">{files[`doc${docNumber}` as "doc1" | "doc2"]}</p>
-                  )}
-                </div>
-              ))}
+              <div>
+                <input
+                  type="file"
+                  id="doc1"
+                  className="hidden"
+                  ref={fileInputRef1}
+                  onChange={(e) => handleFileChange(e, 1)}
+                />
+                <Button variant="outline" className="w-full" onClick={() => fileInputRef1.current?.click()}>
+                  {files.doc1 ? files.doc1.name : "Select Doc 1"}
+                </Button>
+              </div>
+              <div>
+                <input
+                  type="file"
+                  id="doc2"
+                  className="hidden"
+                  ref={fileInputRef2}
+                  onChange={(e) => handleFileChange(e, 2)}
+                />
+                <Button variant="outline" className="w-full" onClick={() => fileInputRef2.current?.click()}>
+                  {files.doc2 ? files.doc2.name : "Select Doc 2"}
+                </Button>
+              </div>
+              <Button onClick={handleDocumentsUpload} disabled={uploading || !files.doc1 || !files.doc2}>
+                {uploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  "Upload"
+                )}
+              </Button>
             </div>
           </div>
         </div>
@@ -110,21 +238,22 @@ export function Page1() {
 
       <Card>
         <CardContent className="pt-6">
-          <Tabs value={currentStage} onValueChange={setCurrentStage}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full justify-start">
-              {progressStages.map((stage) => (
-                <TabsTrigger key={stage} value={stage} className="flex-1">
-                  {stage}
+              {conversationNames.map((name) => (
+                <TabsTrigger key={name} value={name} className="flex-1">
+                  {name}
                 </TabsTrigger>
               ))}
             </TabsList>
+            {conversationNames.map((name) => (
+              <TabsContent key={name} value={name} className="mt-4 p-4 border rounded-lg">
+                <ChatDisplay messages={conversations[name] || []} />
+              </TabsContent>
+            ))}
           </Tabs>
-          <div className="mt-4 p-4">
-            <p className="text-muted-foreground">Current Stage: {currentStage}</p>
-          </div>
         </CardContent>
       </Card>
     </div>
   )
 }
-
