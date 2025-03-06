@@ -1,6 +1,8 @@
 import uuid
+import time
 import requests
 import asyncio
+import random
 from typing import List
 from trafilatura import extract
 from urllib.parse import urlparse
@@ -37,7 +39,7 @@ class SearXNG:
                 "\uff0c",
                 "\u3001",
                 " ",
-                "\u200B",
+                "\u200b",
                 "",
             ],
         )
@@ -63,7 +65,7 @@ class SearXNG:
         parsed_url = urlparse(url)
         return parsed_url.netloc
 
-    def get_urls(self, query, limit=5, **kwargs):
+    def get_urls(self, query, limit=3, **kwargs):
         """
         Fetch search results from a specified search engine instance based on the given query.
         Args:
@@ -78,8 +80,11 @@ class SearXNG:
                 Results are filtered to exclude previously scraped URLs and excluded domains.
                 Maximum length is determined by limit parameter.
         """
-
         self.params |= {"q": query, **kwargs}
+
+        delay = random.uniform(1, 5)
+        time.sleep(delay)
+
         try:
             response = requests.get(self.instance, params=self.params)
             response.raise_for_status()
@@ -229,9 +234,9 @@ class SearXNG:
 
         list_of_payload = [
             {
-                "title": result.payload["title"],
-                "url": result.payload["url"],
-                "text": result.payload["text"],
+                "title": result.payload["doc"]["title"],
+                "url": result.payload["doc"]["url"],
+                "text": result.payload["doc"]["text"],
             }
             for result in payloads
         ]

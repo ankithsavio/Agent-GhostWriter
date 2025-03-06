@@ -109,10 +109,10 @@ class Qdrant:
         query_emb = self.embedding_model(query)
         query_entities = self.get_entities(query)
         filter_conditions = [
-            FieldCondition(key="entities", match=MatchValue(value=entity))
+            FieldCondition(key="entity", match=MatchValue(value=entity))
             for entity in query_entities
         ]
-        query_filter = Filter(should=filter_conditions, minimum_should_match=1)
+        query_filter = Filter(should=filter_conditions)
         results = self.client.query_points(
             collection_name=collection_name,
             query=query_emb[0],

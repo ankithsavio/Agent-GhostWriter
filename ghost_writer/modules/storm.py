@@ -45,7 +45,7 @@ class Storm:
             str(prompt)
             + str(
                 Prompt(
-                    prompy="\n",
+                    prompt="\n",
                     persona=f"""
                         role: {worker.persona} 
                         description: {worker.description} 

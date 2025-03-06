@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from ghost_writer.utils.diff import DiffDocument
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.modules.search import SearXNG
+from ghost_writer.modules.search_ddg import DuckDuckGoSearch
 from ghost_writer.modules.vectordb import Qdrant
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
@@ -30,7 +31,8 @@ class KnowledgeBaseBuilder:
         self.struct_llm = GeminiBaseStructuredLLM()
         self.llm = TogetherBaseLLM()
         self.model = model
-        self.search = SearXNG()
+        # self.search = SearXNG()
+        self.search = DuckDuckGoSearch()
         self.vectordb = Qdrant()
         self.collection_name = source_name
         self.vectordb.create_collection(self.collection_name)
@@ -49,7 +51,7 @@ class KnowledgeBaseBuilder:
                 "\uff0c",
                 "\u3001",
                 " ",
-                "\u200B",
+                "\u200b",
                 "",
             ],
         )
@@ -241,15 +243,20 @@ class KnowledgeBaseBuilder:
             format=search_model,
         )
 
-        topic_tuples = [(topic[0], topic[1].queries) for topic in search_queries]
+        result_list = [
+            {
+                "topic": topic[0],
+                "queries": topic[1].queries,
+                "results": self.summarize_search_results(
+                    self.search.run(query=topic[1].queries)
+                ),
+            }
+            for topic in search_queries
+        ]
 
         self.knowledge_document = ""
 
-        def generate_article_section(topic, queries):
-
-            search_results = self.summarize_search_results(
-                self.search.run_many(queries=queries)
-            )
+        def generate_article_section(topic, search_results):
 
             document_curation = f"#{topic}\n\n"
 
@@ -259,7 +266,7 @@ class KnowledgeBaseBuilder:
                     str(gen_prompt)
                     + str(
                         Prompt(
-                            promtp="\n",
+                            prompt="\n",
                             section=topic,
                             outline=document_curation,
                             search_results=search_results_formatted,
@@ -268,11 +275,13 @@ class KnowledgeBaseBuilder:
                 )
             return document_curation
 
-        with ThreadPoolExecutor(len(search_model.model_fields())) as executor:
+        with ThreadPoolExecutor(len(search_model.model_fields)) as executor:
 
             future_topics = {
-                executor.submit(generate_article_section, topic, queries): topic
-                for topic, queries in topic_tuples
+                executor.submit(
+                    generate_article_section, result["topic"], result["results"]
+                ): result["topic"]
+                for result in result_list
             }
 
             article_dict = {}
@@ -281,8 +290,8 @@ class KnowledgeBaseBuilder:
                 section = future.result()
                 article_dict[topic] = section
 
-        for topic, _ in topic_tuples:
-            self.knowledge_document += article_dict[topic]
+        for result in result_list:
+            self.knowledge_document += article_dict[result["topic"]]
 
         self.split_and_upload_document(self.knowledge_document)
         return self.knowledge_document
