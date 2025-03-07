@@ -56,6 +56,8 @@ class Storm:
                             for message in worker.conversation.get_messages()
                         ]
                     ),
+                    watch=["conversation_history"],
+                    token_limit=8096,
                 )
             )
         )
@@ -101,7 +103,10 @@ class Storm:
             str(prompt)
             + str(
                 Prompt(
-                    prompt="\n", conversation_history=worker.conversation.get_messages()
+                    prompt="\n",
+                    conversation_history=worker.conversation.get_messages(),
+                    watch=["conversation_history"],
+                    token_limit=8096,
                 )
             )
         )
