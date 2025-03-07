@@ -13,9 +13,11 @@ class DiffDocument:
     def __init__(self, doc: str, anonymizer: PresidioReversibleAnonymizer = None):
         self.document = doc
         self.anonymizer = anonymizer
+        self.update_history = []
 
     def apply(self, update: Updates):
         self.document = self.document.replace(update.content, update.replacement)
+        self.update_history.append(update.model_dump(exclude={"reason"}))
         return update.reason
 
     def __call__(self, deanonymize: bool = False):
