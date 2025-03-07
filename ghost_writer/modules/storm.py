@@ -3,14 +3,14 @@ from pydantic import BaseModel
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.persona import Personas
 from ghost_writer.utils.workers import Worker, Message
-from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
+from llms.basellm import LLM, StructLLM
 
 
 class Storm:
 
     def __init__(self):
-        self.llm = TogetherBaseLLM()
-        self.struct_llm = GeminiBaseStructuredLLM()
+        self.llm = LLM(provider="togetherai")
+        self.struct_llm = StructLLM(provider="google")
         self.queue = queue.Queue()
 
     def get_personas(self, prompt: Prompt):
@@ -52,7 +52,7 @@ class Storm:
                         """,
                     conversation_history="\n".join(
                         [
-                            f"\nrole : {message.role}\ncontent: {message.content}"
+                            f"\nrole : {message['role']}\ncontent: {message['content']}"
                             for message in worker.conversation.get_messages()
                         ]
                     ),
@@ -81,7 +81,7 @@ class Storm:
             str(
                 Prompt(
                     prompt=f"You want to answer the {worker.persona}'s question by querying vector database. What queries would answer the question effectively?",
-                    question=f"role: {last_message.role}\ncontent: {last_message.content}",
+                    question=f"role: {last_message['role']}\ncontent: {last_message['content']}",
                 )
             )
             + str(prompt),
@@ -97,7 +97,14 @@ class Storm:
             prompt (Prompt): The prompt object containing the prompt for the LLM
         """
 
-        response = self.llm(str(prompt))
+        response = self.llm(
+            str(prompt)
+            + str(
+                Prompt(
+                    prompt="\n", conversation_history=worker.conversation.get_messages()
+                )
+            )
+        )
         message = Message(role="Expert", content=response)
         worker.conversation.add_message(message)
         self.push_update(worker)

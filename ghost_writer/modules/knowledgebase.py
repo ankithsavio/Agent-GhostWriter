@@ -9,7 +9,7 @@ from ghost_writer.modules.search import SearXNG
 from ghost_writer.modules.search_ddg import DuckDuckGoSearch
 from ghost_writer.modules.vectordb import Qdrant
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from llms.basellm import TogetherBaseLLM, GeminiBaseStructuredLLM
+from llms.basellm import LLM, StructLLM
 from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
@@ -24,15 +24,14 @@ class KnowledgeBaseBuilder:
         source_name: str,
         model: BaseModel,
         anonymize: bool,
+        research: bool,
     ):
         self.anonymizer = PresidioReversibleAnonymizer(
             analyzed_fields=["PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "URL"]
         )
-        self.struct_llm = GeminiBaseStructuredLLM()
-        self.llm = TogetherBaseLLM()
+        self.struct_llm = StructLLM(provider="google")
+        self.llm = LLM(provider="togetherai")
         self.model = model
-        # self.search = SearXNG()
-        self.search = DuckDuckGoSearch()
         self.vectordb = Qdrant()
         self.collection_name = source_name
         self.vectordb.create_collection(self.collection_name)
@@ -56,6 +55,9 @@ class KnowledgeBaseBuilder:
             ],
         )
         self.source = self.load_files(source, anonymize=anonymize)
+        if research:
+            # self.search = SearXNG()
+            self.search = DuckDuckGoSearch()
 
     def load_files(self, items: Union[str, List[str]], anonymize: bool = True):
         """
@@ -134,7 +136,7 @@ class KnowledgeBaseBuilder:
             result_list.append(
                 {
                     "query": query,
-                    "result": [result.payload["text"] for result in results],
+                    "result": [result.payload["doc"]["text"] for result in results],
                 }
             )
 
@@ -238,21 +240,43 @@ class KnowledgeBaseBuilder:
         Returns:
             str: The generated knowledge document
         """
+        if not self.search:
+            raise ValueError(
+                "Research not enabled during the initialization of the knowledge base."
+            )
+
         search_queries = self.struct_llm(
             prompt=str(search_prompt),
             format=search_model,
         )
 
-        result_list = [
-            {
-                "topic": topic[0],
-                "queries": topic[1].queries,
-                "results": self.summarize_search_results(
-                    self.search.run(query=topic[1].queries)
-                ),
-            }
-            for topic in search_queries
-        ]
+        ### <-- Till we finish everything but web research --> ###
+
+        # result_list = [
+        #     {
+        #         "topic": topic[0],
+        #         "queries": topic[1].queries,
+        #         "results": self.summarize_search_results(
+        #             self.search.run(query=topic[1].queries)
+        #         ),
+        #     }
+        #     for topic in search_queries
+        # ]
+
+        ### <-- Till we finish everything but web research --> ###
+        import json
+
+        result_file = "tests/search_dumps.json"
+
+        # with open(result_file, "w") as file:
+        #     json.dump(result_list, file, indent=4)
+
+        ### <-- Till we finish everything but web research --> ###
+
+        with open(result_file, "r") as file:
+            result_list = json.load(file)
+
+        ### <-- Till we finish everything but web research --> ###
 
         self.knowledge_document = ""
 

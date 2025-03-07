@@ -8,7 +8,7 @@ from trafilatura import extract
 from urllib.parse import urlparse
 from crawl4ai import AsyncWebCrawler
 from ghost_writer.modules.vectordb import Qdrant
-from llms.basellm import TogetherBaseLLM
+from llms.basellm import LLM
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
@@ -43,12 +43,12 @@ class SearXNG:
                 "",
             ],
         )
-        self.collection_name = "WebSearch" + str(uuid.uuid4())
+        self.collection_name = "WebSearch"
 
         self.vectordb = Qdrant()
         self.vectordb.create_collection(self.collection_name)
 
-        self.llm = TogetherBaseLLM()
+        self.llm = LLM(provider="togetherai")
 
         self.scraped_urls = []
         self.excluded_urls = ["linkedin.com"]
