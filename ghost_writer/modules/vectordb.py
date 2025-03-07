@@ -34,6 +34,17 @@ class Qdrant:
             vectors_config=VectorParams(size=768, distance=Distance.COSINE),
         )
 
+    def get_collections(self):
+        """
+        Generate a list of collections in the vectordb
+        Returns:
+            List: A list of collections names
+        """
+
+        return [
+            collection.name for collection in self.client.get_collections().collections
+        ]
+
     def get_embeddings(self, text_list: List):
         """
         Generate embeddings for a list of text chunks using the embedding model.
