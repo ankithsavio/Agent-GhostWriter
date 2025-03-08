@@ -17,8 +17,7 @@ class DiffDocument:
 
     def apply(self, update: Updates):
         self.document = self.document.replace(update.content, update.replacement)
-        self.update_history.append(update.model_dump(exclude={"reason"}))
-        return update.reason
+        self.update_history.append(update.replacement)
 
     def __call__(self, deanonymize: bool = False):
         if deanonymize and self.anonymizer:

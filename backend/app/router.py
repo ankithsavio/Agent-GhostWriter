@@ -1,6 +1,7 @@
 from fastapi import APIRouter, File, UploadFile, WebSocket, BackgroundTasks
 from fastapi.responses import JSONResponse
 from backend.engine import WriterEngine, Prompt, post_workflow, Worker
+from ghost_writer.utils.diff import DiffDocument, Updates
 from ghost_writer.utils.logger import log_queue, logger
 from typing import List, Dict, Tuple
 from pydantic import BaseModel
@@ -77,6 +78,7 @@ class EngineRouter:
             """
             try:
                 bgtask.add_task(self.engine.get_job_kb, text.text)
+                await self.document_event.wait()
                 bgtask.add_task(self.run)
                 asyncio.create_task(self.monitor_queue())
 
@@ -208,34 +210,57 @@ class EngineRouter:
                 if not self.apply_function_event.is_set():
                     await self.apply_function_event.wait()
 
+                # every persona gets own history
+                diffdoc = DiffDocument(doc)
                 while True:
-                    _ = await websocket.receive_json()
+                    message = await websocket.receive_json()
 
-                    if suggestion_generator is None:
+                    if message.get("action") == "get_suggestion":
                         for persona in self.personas:
                             if persona.persona == persona_name:
-                                suggestion_generator = post_workflow(
-                                    doc,
+                                next_suggestion = post_workflow(
+                                    diffdoc,
                                     prompt,
                                     persona.conversation.get_messages(),
-                                    10,
                                 )
                                 break
-                    try:
-                        next_suggestion = next(suggestion_generator)
                         await websocket.send_json(next_suggestion)
-                    except StopIteration:
+
+                    elif message.get("action") == "accept_suggestion" and message.get(
+                        "suggestion"
+                    ):
+                        suggestion = message["suggestion"]
+
+                        diffdoc.apply(Updates.model_validate_json(suggestion))
+
+                        self.engine.user_knowledge_base.source[doc_number - 1] = diffdoc
+
                         await websocket.send_json(
                             {
-                                "message": "No more suggestions available",
-                                "end": True,
+                                "action": "suggestion_accepted",
+                                "success": True,
+                                "message": "Suggestion applied successfully on the server",
                             }
                         )
+
+                        doc_socket = self.active_websockets["documents"].get(
+                            doc_number - 1
+                        )
+                        if doc_socket:
+                            try:
+                                await doc_socket.send_text(
+                                    self.engine.user_knowledge_base.source[
+                                        doc_number - 1
+                                    ](deanonymize=True)
+                                )
+                            except Exception as e:
+                                logger.error(f"Failed to update document view: {e}")
 
                     await asyncio.sleep(0.1)
 
             except Exception as e:
                 print(f"Suggestion connection closed for {persona_name}: {e}")
+                logger.error(f"Suggestion connection error: {e}")
 
     def register_logging_routes(self):
         @self.router.websocket("/api/logs")
