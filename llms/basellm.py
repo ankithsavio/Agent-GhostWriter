@@ -60,7 +60,8 @@ class LLM(BaseLLM):
     Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
     """
 
-    def __init__(self, model=None):
+    def __init__(self, provider: str, model=None, **kwargs):
+        super().__init__(self, provider, **kwargs)
 
         self.model = model if model else self.default_model
         self.config = {
@@ -103,7 +104,9 @@ class StructLLM(BaseLLM):
     Base Gemini Wrapper for gemini-2.0 flash and pro models. Uses OpenAI Client using gemini inference base url.
     """
 
-    def __init__(self, model=None):
+    def __init__(self, provider: str, model=None, **kwargs):
+        super().__init__(self, provider, **kwargs)
+
         self.model = model if model else self.default_model
         self.config = {
             "model": self.model,
