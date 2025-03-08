@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class Editor(BaseModel):
     persona: str
-    short_summary: str
+    role_name: str
     description: str
 
 

@@ -2,8 +2,8 @@ from llms.conversation import ConversationHistory, Message
 
 
 class Worker:
-    def __init__(self, persona: str, short_summary: str, description: str):
+    def __init__(self, persona: str, role_name: str, description: str):
         self.persona = persona
-        self.short_summary = short_summary
+        self.role = role_name
         self.description = description
-        self.conversation = ConversationHistory(name=self.persona)
+        self.conversation = ConversationHistory(name=self.role)
