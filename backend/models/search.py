@@ -4,19 +4,19 @@ from pydantic import BaseModel, Field
 
 
 class company_overview(BaseModel):
-    queries: List[str]
+    queries: str
 
 
 class products_and_services(BaseModel):
-    queries: List[str]
+    queries: str
 
 
 class job_specific_context(BaseModel):
-    queries: List[str]
+    queries: str
 
 
 class recent_news_and_projects(BaseModel):
-    queries: List[str]
+    queries: str
 
 
 class SearchQueries(BaseModel):

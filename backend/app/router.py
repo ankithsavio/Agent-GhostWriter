@@ -149,7 +149,7 @@ class EngineRouter:
                     await self.persona_event.wait()
 
                 return JSONResponse(
-                    content={"content": [persona.persona for persona in self.personas]}
+                    content={"content": [persona.role for persona in self.personas]}
                 )
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
@@ -172,7 +172,7 @@ class EngineRouter:
                 await self.persona_event.wait()
 
             for persona in self.personas:
-                if persona.persona == persona_name:
+                if persona.role == persona_name:
                     await websocket.send_json(persona.conversation.get_messages())
                     break
 
@@ -181,8 +181,8 @@ class EngineRouter:
                     await asyncio.sleep(0.1)
             except Exception as e:
                 print(f"Connection closed for {persona_name}: {e}")
-            finally:
-                del self.active_websockets["personas"][persona_name]
+            # finally:
+            #     del self.active_websockets["personas"][persona_name]
 
     def register_function_routes(self):
 
@@ -211,13 +211,13 @@ class EngineRouter:
                     await self.apply_function_event.wait()
 
                 # every persona gets own history
-                diffdoc = DiffDocument(doc)
+                diffdoc = DiffDocument(doc())
                 while True:
                     message = await websocket.receive_json()
 
                     if message.get("action") == "get_suggestion":
                         for persona in self.personas:
-                            if persona.persona == persona_name:
+                            if persona.role == persona_name:
                                 next_suggestion = post_workflow(
                                     diffdoc,
                                     prompt,
@@ -286,7 +286,7 @@ class EngineRouter:
                 except queue.Empty:
                     await asyncio.sleep(0.1)
                     continue
-                websocket = self.active_websockets["personas"][worker.persona]
+                websocket = self.active_websockets["personas"][worker.role]
                 await websocket.send_json(worker.conversation.get_messages())
             except Exception as e:
                 print(f"Error sending message from: {e}")

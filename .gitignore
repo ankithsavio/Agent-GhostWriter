@@ -180,3 +180,5 @@ tests/
 .vscode/
 pytest*
 !frontend/**
+agent-ghostwriter-backend/
+assets/

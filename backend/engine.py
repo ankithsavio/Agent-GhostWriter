@@ -32,6 +32,7 @@ class WriterEngine:
             source_name=self.company_collection_name,
             model=CompanyReport,
             anonymize=False,  # for web search
+            research=True,
         )
         logger.info("Company Knowledge Base Created")
 
@@ -40,7 +41,8 @@ class WriterEngine:
             source=files,
             source_name=self.user_collection_name,
             model=UserReport,
-            anonymize=True,
+            anonymize=False,
+            research=False,
         )
         logger.info("User Knowledge Base Created")
 
@@ -103,7 +105,7 @@ class WriterEngine:
         Query across multiple collections in Qdrant
         """
         collection = entity.value.lower()
-        if not collection in self.vectordb.client.get_collections():
+        if not collection in self.vectordb.get_collections():
             raise ValueError("Invalid collections name")
 
         result_list = []
@@ -112,7 +114,7 @@ class WriterEngine:
             result_list.append(
                 {
                     "query": query,
-                    "result": [result.payload["text"] for result in results],
+                    "result": [result.payload["doc"]["text"] for result in results],
                 }
             )
 
@@ -122,7 +124,7 @@ class WriterEngine:
         """
         Prompts for Knowledge Storm
         """
-        self.topic = f"Personalized Resume for the role {self.company_report[0].jobPosting.jobTitle} at {self.company_report[0].company.name} for {self.user_report[0].personal_information.name}"
+        self.topic = f"Personalized Resume for the role {self.company_report[0].jobPosting.jobTitle} at {self.company_report[0].company.name}"
 
         self.persona_prompt = Prompt(
             prompt=f"You need to select a group of Resume editors who will work together to create a {self.topic}. \
