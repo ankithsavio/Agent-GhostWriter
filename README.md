@@ -27,4 +27,4 @@
 
 ## Dataflow Diagram
 
-![Figure](agent_ghost_writer.png)
+![Figure](ghost_writer_figure.png)
