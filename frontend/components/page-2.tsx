@@ -10,7 +10,8 @@ import { useToast } from "@/components/ui/use-toast"
 import * as api from "@/lib/api"
 import ReactDiffViewer from "react-diff-viewer"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, CheckCircle, XCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, Edit, XCircle } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
 
 const WS_BASE_URL = "ws://localhost:8080"
 const API_BASE_URL = "http://localhost:8080"
@@ -33,6 +34,8 @@ export function Page2() {
   const [selectedPersona, setSelectedPersona] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [suggestionLoading, setSuggestionLoading] = useState(false)
+  const [editedReplacements, setEditedReplacements] = useState<Record<string | number, string>>({});
+  const [editMode, setEditMode] = useState<Record<string | number, boolean>>({});
   const documentSocketRef = useRef<WebSocket | null>(null)
   const suggestionSocketRef = useRef<WebSocket | null>(null)
 
@@ -202,13 +205,61 @@ export function Page2() {
     setSuggestions([]); // Clear previous suggestions when changing persona
   };
 
-  const handleAcceptSuggestion = (suggestion: Suggestion) => {
-    // Remove the suggestion from the list
-    setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
+  const toggleEditMode = (suggestionId: string | number) => {
+    setEditMode(prev => ({
+      ...prev,
+      [suggestionId]: !prev[suggestionId]
+    }));
     
-    // Update the document content with the replacement
+    // Initialize edited value with original replacement when entering edit mode
+    if (!editMode[suggestionId]) {
+      const suggestion = suggestions.find(s => s.id === suggestionId);
+      if (suggestion) {
+        setEditedReplacements(prev => ({
+          ...prev,
+          [suggestionId]: suggestion.replacement
+        }));
+      }
+    }
+  };
+
+  const handleEditChange = (suggestionId: string | number, value: string) => {
+    setEditedReplacements(prev => ({
+      ...prev,
+      [suggestionId]: value
+    }));
+  };
+
+  const handleAcceptSuggestion = (suggestion: Suggestion) => {
+    if (!suggestionSocketRef.current || suggestionSocketRef.current.readyState !== WebSocket.OPEN) {
+      toast({
+        variant: "destructive",
+        title: "Connection Error",
+        description: "WebSocket connection not available. Cannot accept suggestion.",
+      });
+      return;
+    }
+
+    // Get the possibly edited replacement
+    const finalReplacement = editedReplacements[suggestion.id] || suggestion.replacement;
+    
+    // Create a complete suggestion object to send back
+    const completeData = {
+      action: "accept_suggestion",
+      suggestion: {
+        content: suggestion.content,
+        replacement: finalReplacement,
+        reason: suggestion.reason
+      }
+    };
+
+    // Send complete suggestion data to backend
+    suggestionSocketRef.current.send(JSON.stringify(completeData));
+
+    // Keep UI responsive by immediately reflecting the change
+    setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
     setDocumentContent(currentContent => 
-      currentContent.replace(suggestion.content, suggestion.replacement)
+      currentContent.replace(suggestion.content, finalReplacement)
     );
     
     toast({
@@ -319,14 +370,31 @@ export function Page2() {
                 
                 <div className="mb-4">
                   <h4 className="font-semibold mb-2">Proposed change:</h4>
-                  <div className="border rounded-md">
-                    <ReactDiffViewer
-                      oldValue={suggestion.content}
-                      newValue={suggestion.replacement}
-                      splitView={false}
-                      useDarkTheme={true}
-                    />
-                  </div>
+                  {!editMode[suggestion.id] ? (
+                    <div className="border rounded-md">
+                      <ReactDiffViewer
+                        oldValue={suggestion.content}
+                        newValue={editedReplacements[suggestion.id] || suggestion.replacement}
+                        splitView={false}
+                        useDarkTheme={true}
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="border rounded-md p-3 bg-muted text-muted-foreground">
+                        <h5 className="text-sm font-medium mb-1">Original Text:</h5>
+                        <div className="whitespace-pre-wrap">{suggestion.content}</div>
+                      </div>
+                      <div>
+                        <h5 className="text-sm font-medium mb-1">Your Edit:</h5>
+                        <Textarea 
+                          value={editedReplacements[suggestion.id] || suggestion.replacement}
+                          onChange={(e) => handleEditChange(suggestion.id, e.target.value)}
+                          className="min-h-[100px]"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex gap-2 justify-end">
@@ -338,6 +406,15 @@ export function Page2() {
                   >
                     <XCircle className="h-4 w-4" />
                     Reject
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    size="sm" 
+                    onClick={() => toggleEditMode(suggestion.id)}
+                    className="flex items-center gap-1"
+                  >
+                    <Edit className="h-4 w-4" />
+                    {editMode[suggestion.id] ? "Preview" : "Edit"}
                   </Button>
                   <Button 
                     variant="default" 

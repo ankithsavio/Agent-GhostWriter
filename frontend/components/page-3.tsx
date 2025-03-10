@@ -35,7 +35,7 @@ export function Page3() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Research Document</h2>
+      <h2 className="text-2xl font-bold">Company Research Article</h2>
       <Card>
         <CardContent className="prose prose-invert max-w-none pt-6">
           {loading ? (

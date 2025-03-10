@@ -9,10 +9,10 @@ interface SidebarProps {
 
 export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   const buttons = [
-    { id: "page1", label: "Function 1" },
-    { id: "page2", label: "Function 2" },
-    { id: "page3", label: "Function 3" },
-    { id: "page4", label: "Function 4" },
+    { id: "page1", label: "Upload" },
+    { id: "page2", label: "Edit" },
+    { id: "page3", label: "Research Doc" },
+    { id: "page4", label: "Logs" },
   ]
 
   return (

@@ -175,12 +175,12 @@ export function Page1() {
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Enter Text</h2>
+          <h2 className="text-lg font-semibold">Enter Job Description</h2>
           <Textarea
             value={text}
             onChange={handleTextChange}
             className="min-h-[200px]"
-            placeholder="Enter your text here..."
+            placeholder="Enter your job description here..."
           />
           <Button onClick={handleTextSubmit} disabled={uploading || !text.trim()}>
             {uploading ? (
@@ -195,7 +195,7 @@ export function Page1() {
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
-            <h2 className="text-lg font-semibold">Upload Documents</h2>
+            <h2 className="text-lg font-semibold">Upload your CV and Cover Letter</h2>
             <div className="grid gap-4">
               <div>
                 <input
