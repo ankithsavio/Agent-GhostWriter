@@ -25,5 +25,6 @@
    MONGO_ROOT_PASSWORD=
    ```
 
+## Dataflow Diagram
 
-
+![Figure](agent_ghost_writer.png)
