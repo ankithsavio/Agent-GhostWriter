@@ -100,25 +100,75 @@ services:
         options:
           max-size: "1m"
           max-file: "1"
-  ollama-server:
-    image: ollama/ollama:latest
-    volumes:
-      - type: bind
-        source: /usr/share/ollama/.ollama/models
-        target: /app/ollama/models
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    user: "101:101"
     environment:
-      OLLAMA_MODELS: /app/ollama/models
-      OLLAMA_HOST: 0.0.0.0
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
     ports:
-      - "11000:11434"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    command: serve && pull deepseek-r1:7b
+      - "8123:8123"
+      - "9000:9000"
+    depends_on:
+      - postgres
+    networks:
+      - searxng
+
+  minio:
+    image: minio/minio
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: miniosecret
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+    networks:
+      - searxng
+
+  langfuse-redis:  
+    image: redis:7.2.4
+    restart: always
+    command: --requirepass ${REDIS_AUTH:-myredissecret}
+    ports:
+      - "6380:6379"  
+    networks:
+      - searxng
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-latest}
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    command: ["postgres", "-c", "log_statement=all"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - searxng
+
 networks:
   searxng:
 
@@ -127,3 +177,11 @@ volumes:
   caddy-config:
   valkey-data2:
   mongodb-data:
+  langfuse_postgres_data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
+    driver: local
+  langfuse_minio_data:
+    driver: local
