@@ -56,8 +56,8 @@ class KnowledgeBaseBuilder:
         )
         self.source = self.load_files(source, anonymize=anonymize)
         if research:
-            # self.search = SearXNG()
-            self.search = DuckDuckGoSearch()
+            self.search = SearXNG()
+            # self.search = DuckDuckGoSearch()
 
     def load_files(self, items: Union[str, List[str]], anonymize: bool = True):
         """
@@ -250,37 +250,23 @@ class KnowledgeBaseBuilder:
             format=search_model,
         )
 
-        ### <-- Till we finish everything but web research --> ###
-
-        # result_list = [
-        #     {
-        #         "topic": topic[0],
-        #         "queries": topic[1].queries,
-        #         "results": self.summarize_search_results(
-        #             self.search.run(query=topic[1].queries)
-        #         ),
-        #     }
-        #     for topic in search_queries
-        # ]
-
-        ### <-- Till we finish everything but web research --> ###
-        import json
-
-        result_file = "tests/search_dumps.json"
-
-        # with open(result_file, "w") as file:
-        #     json.dump(result_list, file, indent=4)
-
-        ### <-- Till we finish everything but web research --> ###
-
-        with open(result_file, "r") as file:
-            result_list = json.load(file)
-
-        ### <-- Till we finish everything but web research --> ###
+        result_list = [
+            {
+                "topic": topic[0],
+                "queries": topic[1].queries,
+                "results": self.summarize_search_results(
+                    self.search.run(query=topic[1].queries)
+                ),
+            }
+            for topic in search_queries
+        ]
 
         self.knowledge_document = ""
 
         def generate_article_section(topic, search_results):
+            """
+            Build Article in parallel, section-wise
+            """
 
             document_curation = f"#{topic}\n\n"
 

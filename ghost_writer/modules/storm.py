@@ -115,4 +115,7 @@ class Storm:
         self.push_update(worker)
 
     def push_update(self, worker: Worker):
+        """
+        Thread safe queue for live updates
+        """
         self.queue.put(worker)

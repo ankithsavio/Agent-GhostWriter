@@ -10,6 +10,14 @@ def post_workflow(
     prompt: Prompt,
     conversation: List[Message],
 ):
+    """
+    Get suggestions from a particular persona based on their conversation with the expert.
+    Args:
+        doc (DiffDocument): Diff Document with update history.
+        prompt (Prompt): specific prompt for suggestions.
+        conversation (List[Message]): conversation history of a persona with an expert.
+
+    """
 
     formatted_conv = "\n".join(
         f"role: {item['role']}\ncontent: {item['content']}" for item in conversation

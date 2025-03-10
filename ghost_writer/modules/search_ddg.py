@@ -1,3 +1,7 @@
+"""
+Experimental - Lighter Alternative to Searxng
+"""
+
 import uuid
 import time
 import asyncio

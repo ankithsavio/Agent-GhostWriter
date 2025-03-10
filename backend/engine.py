@@ -19,6 +19,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class WriterEngine:
+    """
+    Engine for the orchestration of the ghost wrtier framework.
+    """
 
     def __init__(self):
         self.user_collection_name = "user"
@@ -27,6 +30,11 @@ class WriterEngine:
         self.vectordb = Qdrant()
 
     def get_job_kb(self, text):
+        """
+        Generates company knowledge base using the job description.
+        Args:
+            text (str): Job Description of the company.
+        """
         self.company_knowledge_base = KnowledgeBaseBuilder(
             source=text,
             source_name=self.company_collection_name,
@@ -37,6 +45,11 @@ class WriterEngine:
         logger.info("Company Knowledge Base Created")
 
     def get_user_kb(self, files):
+        """
+        Generates user knowledge base using the uploaded files.
+        Args:
+            files (List[os.pathlike]): Paths for the uploaded user files.
+        """
         self.user_knowledge_base = KnowledgeBaseBuilder(
             source=files,
             source_name=self.user_collection_name,
@@ -47,6 +60,10 @@ class WriterEngine:
         logger.info("User Knowledge Base Created")
 
     def load_reports(self):
+        """
+        Generates structured reports of the user and the company.
+
+        """
         docs = self.user_knowledge_base.source
         self.user_report = []
         for doc in docs:
@@ -67,6 +84,10 @@ class WriterEngine:
         logger.info("Company Report Loaded")
 
     def create_portfolios(self):
+        """
+        Generates knowledge documents for the user and the company using the knowledge builder module
+
+        """
         portfolio_prompt = Prompt(
             prompt="Generate a single comperehensive portfolio article using the provided outline and two structured user reports",
             user_report_1=self.user_report[0].model_dump(),
@@ -186,11 +207,21 @@ class WriterEngine:
         logger.info("Prompts are set for orchestration")
 
     def generate_personas(self):
+        """
+        Generate personas for multi-agent communication.
+
+        """
         personas = self.workflow.get_personas(prompt=self.persona_prompt)
         logger.info("Personas successfully created")
         return personas
 
     def conversation_simulation(self, worker: Worker):
+        """
+        Simulates a single conversation for a worker with the expert.
+        Args:
+            worker (Worker): persona with conversation history.
+
+        """
         logger.info("Initiating conversation simulation")
         iterations = 10
         for _ in range(iterations):
@@ -209,6 +240,12 @@ class WriterEngine:
         return worker.conversation.get_messages()
 
     def parallel_conversation(self, personas: List[Worker]):
+        """
+        Starts conversation_simulation in parallel among many workers.
+        Args:
+            personas (List[Worker]): list of personas with conversation history.
+
+        """
         logger.info("Initiating Parallel Conversation")
         conversations = []
         with ThreadPoolExecutor(max_workers=10) as executor:

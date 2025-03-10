@@ -14,17 +14,24 @@ class Message(BaseModel):
 
 
 class ConversationHistory:
+    """
+    Entity based conversation history.
+    """
 
     def __init__(self, name: str):
         url = f"mongodb://{os.getenv('MONGO_ROOT_USERNAME', 'root')}:{os.getenv('MONGO_ROOT_PASSWORD', 'example')}@localhost:27018/?authSource=admin"
         self.client = MongoClient(url)
-        self.session_id = str(uuid.uuid4())
+        self.session_id = str(uuid.uuid4())  # entity unique id
         self.db = self.client["Ghost_Writer"]
         self.collection = self.db[name]
         self.collection.create_index("session_id")
 
     def add_message(self, message: Message):
-
+        """
+        Add single message to the database
+        Args:
+            message (Message): a pydantic model containing the role and the content of the message.
+        """
         self.collection.insert_one(
             {
                 "session_id": self.session_id,
@@ -33,10 +40,18 @@ class ConversationHistory:
         )
 
     def add_messages(self, messages: List[Message]):
+        """
+        Add multiple messages to the database
+        Args:
+            messages (List[Message]): a list of pydantic model (Messsage).
+        """
         for message in messages:
             self.add_message(message)
 
     def get_messages(self):
+        """
+        Retreive the entire conversation history of the entity.
+        """
         messages = self.collection.find({"session_id": self.session_id})
         return [
             Message(
