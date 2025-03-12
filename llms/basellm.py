@@ -1,4 +1,4 @@
-import openai
+import openai as oai
 from dotenv import load_dotenv
 from typing import List, Dict
 import os
@@ -75,7 +75,7 @@ class LLM(BaseLLM):
 
     @observe()
     @retry(
-        retry=retry_if_exception_type(openai.RateLimitError),
+        retry=retry_if_exception_type(oai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
@@ -90,7 +90,7 @@ class LLM(BaseLLM):
         try:
             response = self.client.chat.completions.create(**self.config)
             return response
-        except openai.RateLimitError as e:
+        except oai.RateLimitError as e:
             raise
 
     def __call__(self, prompt, **kwargs):
@@ -120,7 +120,7 @@ class StructLLM(BaseLLM):
 
     @observe()
     @retry(
-        retry=retry_if_exception_type(openai.RateLimitError),
+        retry=retry_if_exception_type(oai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
@@ -136,7 +136,7 @@ class StructLLM(BaseLLM):
         try:
             response = self.client.beta.chat.completions.parse(**self.config)
             return response
-        except openai.RateLimitError as e:
+        except oai.RateLimitError as e:
             raise
 
     def __call__(self, prompt, format, **kwargs):
@@ -153,7 +153,7 @@ class EmbeddingModel:
     """
 
     def __init__(self):
-        self.client = OpenAI(
+        self.client = openai.OpenAI(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
@@ -162,7 +162,7 @@ class EmbeddingModel:
 
     @observe()
     @retry(
-        retry=retry_if_exception_type(openai.RateLimitError),
+        retry=retry_if_exception_type(oai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
@@ -177,7 +177,7 @@ class EmbeddingModel:
         try:
             response = self.client.embeddings.create(**self.config)
             return response
-        except openai.RateLimitError as e:
+        except oai.RateLimitError as e:
             raise
 
     def __call__(self, texts: List[str]):
