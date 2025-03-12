@@ -1,10 +1,12 @@
 from typing import List
 from llms.basellm import StructLLM
+from langfuse.decorators import observe
 from ghost_writer.utils.workers import Message
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.diff import Updates, DiffDocument
 
 
+@observe()
 def post_workflow(
     doc: DiffDocument,
     prompt: Prompt,

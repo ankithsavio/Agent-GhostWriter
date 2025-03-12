@@ -6,6 +6,7 @@ import random
 from typing import List
 from trafilatura import extract
 from urllib.parse import urlparse
+from langfuse.decorators import observe
 from crawl4ai import AsyncWebCrawler
 from ghost_writer.modules.vectordb import Qdrant
 from llms.basellm import LLM
@@ -242,6 +243,7 @@ class SearXNG:
         ]
         return list_of_payload
 
+    @observe()
     def run(self, query):
         """
         Executes a web search, retrieves content, and performs vector database operations.
@@ -262,6 +264,7 @@ class SearXNG:
         )
         return result
 
+    @observe()
     def run_many(self, queries):
         """
         Process multiple search queries, fetch web content, and store in vector database.

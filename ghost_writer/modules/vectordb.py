@@ -1,5 +1,6 @@
 import spacy
 from typing import List, Union, Dict
+from langfuse.decorators import observe
 from llms.basellm import EmbeddingModel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
@@ -104,6 +105,7 @@ class Qdrant:
         ]
         self.client.upsert(collection_name=collection_name, points=points)
 
+    @observe()
     def query_documents(self, collection_name, query, limit=5):
         """
         Queries the vector database for similar documents based on semantic similarity and named entities.

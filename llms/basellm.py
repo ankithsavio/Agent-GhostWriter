@@ -1,5 +1,4 @@
 import openai
-from openai import OpenAI
 from dotenv import load_dotenv
 from typing import List, Dict
 import os
@@ -9,6 +8,8 @@ from tenacity import (
     wait_random_exponential,
     retry_if_exception_type,
 )
+from langfuse.openai import openai
+from langfuse.decorators import observe
 from transformers import AutoTokenizer
 
 load_dotenv(".env")
@@ -41,7 +42,7 @@ class BaseLLM:
             api_key = os.getenv("GEMINI_API_KEY", None)
             self.default_model = "gemini-2.0-flash"
 
-        self.client = OpenAI(
+        self.client = openai.OpenAI(
             base_url=base_url,
             api_key=api_key,
         )
@@ -72,6 +73,7 @@ class LLM(BaseLLM):
             "max_completion_tokens": None,
         }
 
+    @observe()
     @retry(
         retry=retry_if_exception_type(openai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),
@@ -116,6 +118,7 @@ class StructLLM(BaseLLM):
             "max_completion_tokens": None,
         }
 
+    @observe()
     @retry(
         retry=retry_if_exception_type(openai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),
@@ -157,6 +160,7 @@ class EmbeddingModel:
         self.model = "text-embedding-004"
         self.config = {"model": self.model, "input": None}
 
+    @observe()
     @retry(
         retry=retry_if_exception_type(openai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),

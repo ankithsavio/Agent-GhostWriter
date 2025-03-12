@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 
 from typing import List, Dict
+from langfuse.decorators import observe
 from backend.models.user import UserReport
 from backend.models.company import CompanyReport
 from backend.models.search import SearchQueries, RAGQueries
@@ -29,6 +30,7 @@ class WriterEngine:
         self.workflow = Storm()
         self.vectordb = Qdrant()
 
+    @observe()
     def get_job_kb(self, text):
         """
         Generates company knowledge base using the job description.
@@ -44,6 +46,7 @@ class WriterEngine:
         )
         logger.info("Company Knowledge Base Created")
 
+    @observe()
     def get_user_kb(self, files):
         """
         Generates user knowledge base using the uploaded files.
@@ -59,6 +62,7 @@ class WriterEngine:
         )
         logger.info("User Knowledge Base Created")
 
+    @observe()
     def load_reports(self):
         """
         Generates structured reports of the user and the company.
@@ -83,6 +87,7 @@ class WriterEngine:
 
         logger.info("Company Report Loaded")
 
+    @observe()
     def create_portfolios(self):
         """
         Generates knowledge documents for the user and the company using the knowledge builder module
@@ -121,6 +126,7 @@ class WriterEngine:
         )
         logger.info("Company Portfolio Created")
 
+    @observe()
     def cross_knowledge_base_query(self, entity, queries: List[str]):
         """
         Query across multiple collections in Qdrant
@@ -206,6 +212,7 @@ class WriterEngine:
         )
         logger.info("Prompts are set for orchestration")
 
+    @observe()
     def generate_personas(self):
         """
         Generate personas for multi-agent communication.
@@ -215,6 +222,7 @@ class WriterEngine:
         logger.info("Personas successfully created")
         return personas
 
+    @observe()
     def conversation_simulation(self, worker: Worker):
         """
         Simulates a single conversation for a worker with the expert.
@@ -239,6 +247,7 @@ class WriterEngine:
         logger.info("Conversation simulation completed")
         return worker.conversation.get_messages()
 
+    @observe()
     def parallel_conversation(self, personas: List[Worker]):
         """
         Starts conversation_simulation in parallel among many workers.

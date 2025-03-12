@@ -3,6 +3,7 @@ import re
 from typing import Union, List, Dict, Type, TypeVar
 import pymupdf4llm as pymupdf
 from pydantic import BaseModel
+from langfuse.decorators import observe
 from ghost_writer.utils.diff import DiffDocument
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.modules.search import SearXNG
@@ -116,6 +117,7 @@ class KnowledgeBaseBuilder:
         )
         return response
 
+    @observe()
     def query_vectordb(self, queries: List[str]):
         """
         Queries the vector database with a list of queries and returns matching documents.
@@ -194,6 +196,7 @@ class KnowledgeBaseBuilder:
             summarized_results.append({"summary": response} | result)
         return summarized_results
 
+    @observe()
     def create_knowledge_document(self, gen_prompt: Prompt):
         """
         Create a knowledge document using an LLM based on the provided prompt and prepare for RAG.
@@ -224,6 +227,7 @@ class KnowledgeBaseBuilder:
         self.split_and_upload_document(self.knowledge_document)
         return self.knowledge_document
 
+    @observe()
     def create_knowledge_document_with_research(
         self,
         search_model: Type[T],
