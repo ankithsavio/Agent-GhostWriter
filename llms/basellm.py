@@ -73,7 +73,7 @@ class LLM(BaseLLM):
             "max_completion_tokens": None,
         }
 
-    @observe()
+    @observe(name="LLM_Generate")
     @retry(
         retry=retry_if_exception_type(oai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),
@@ -113,12 +113,12 @@ class StructLLM(BaseLLM):
         self.config = {
             "model": self.model,
             "messages": None,
-            "temperature": None,
+            "temperature": 0,
             "top_p": None,
             "max_completion_tokens": None,
         }
 
-    @observe()
+    @observe(name="Struct_Generate")
     @retry(
         retry=retry_if_exception_type(oai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),
@@ -144,7 +144,11 @@ class StructLLM(BaseLLM):
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
         ]
-        return self.generate(self.model, message, format).choices[0].message.parsed
+        return (
+            self.generate(self.model, message, format, **kwargs)
+            .choices[0]
+            .message.parsed
+        )
 
 
 class EmbeddingModel:
@@ -160,7 +164,7 @@ class EmbeddingModel:
         self.model = "text-embedding-004"
         self.config = {"model": self.model, "input": None}
 
-    @observe()
+    @observe(name="Embedding_Generate")
     @retry(
         retry=retry_if_exception_type(oai.RateLimitError),
         wait=wait_random_exponential(min=5, max=60),

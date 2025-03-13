@@ -15,7 +15,7 @@ from ghost_writer.modules.storm import Storm
 from ghost_writer.modules.writer import post_workflow
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 
-from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, JOB_DESC, QUERY_PROMPT
+from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -93,37 +93,56 @@ class WriterEngine:
         Generates knowledge documents for the user and the company using the knowledge builder module
 
         """
-        portfolio_prompt = Prompt(
-            prompt="Generate a single comperehensive portfolio article using the provided outline and two structured user reports",
-            user_report_1=self.user_report[0].model_dump(),
-            user_report_2=self.user_report[1].model_dump(),
-        )
-        self.user_portfolio = self.user_knowledge_base.create_knowledge_document(
-            gen_prompt=portfolio_prompt
-        )
-        logger.info("User Portfolio Created")
+        # portfolio_prompt = Prompt(
+        #     prompt="Generate a single comperehensive portfolio article using the provided outline and two structured user reports",
+        #     user_report_1=self.user_report[0].model_dump(),
+        #     user_report_2=self.user_report[1].model_dump(),
+        # )
+        # self.user_portfolio = self.user_knowledge_base.create_knowledge_document(
+        #     gen_prompt=portfolio_prompt
+        # )
+        # logger.info("User Portfolio Created")
 
-        research_prompt = Prompt(
-            prompt=QUERY_PROMPT,
-            company_report=self.company_report[0].model_dump(),
-        )
-        portfolio_prompt = Prompt(
-            prompt=f"You are a **technical writer** specializing in company reports. Your task is to write specific sections of the report for **{self.company_report[0].company.name}** using the web search results.",
-            instructions=f"""
-            1. Content Relevance: Ensure all added content is directly relevant to **{self.company_report[0].company.name}**. Do not include information about other companies or irrelevant topics. Focus on information that directly supports the outline sections.
-            2. Subsection and Content: For the provided query and section, create a single appropriate subsection using the format - ### Subsection Title followed by its content. Generate this content directly.
-            3. Outline Adherence: Strictly adhere to the provided section and outline. Do not add new sections, focus only on the given section and appropriately extend the provided outline.
-            4. No Irrelevant Information: If the search results do not contain relevant information for the chosen specific section of the outline, leave that section blank. Do not invent or assume information.
-            5. Concise Integration: Integrate the information from the search results concisely and effectively into the outline. 
-            """,
-        )
-        self.company_portfolio = (
-            self.company_knowledge_base.create_knowledge_document_with_research(
-                search_model=SearchQueries,
-                search_prompt=research_prompt,
-                gen_prompt=portfolio_prompt,
-            )
-        )
+        # research_prompt = Prompt(
+        #     prompt=QUERY_PROMPT,
+        #     company_report=self.company_report[0].model_dump(),
+        # )
+        # portfolio_prompt = Prompt(
+        #     prompt=f"You are a **technical writer** specializing in company reports. Your task is to write specific sections of the report for **{self.company_report[0].company.name}** using the web search results.",
+        #     instructions=f"""
+        #     1. Content Relevance: Ensure all added content is directly relevant to **{self.company_report[0].company.name}**. Do not include information about other companies or irrelevant topics. Focus on information that directly supports the outline sections.
+        #     2. Subsection and Content: For the provided query and section, create a single appropriate subsection using the format - ### Subsection Title followed by its content. Generate this content directly.
+        #     3. Outline Adherence: Strictly adhere to the provided section and outline. Do not add new sections, focus only on the given section and appropriately extend the provided outline.
+        #     4. No Irrelevant Information: If the search results do not contain relevant information for the chosen specific section of the outline, leave that section blank. Do not invent or assume information.
+        #     5. Concise Integration: Integrate the information from the search results concisely and effectively into the outline.
+        #     """,
+        # )
+        # self.company_portfolio = (
+        #     self.company_knowledge_base.create_knowledge_document_with_research(
+        #         search_model=SearchQueries,
+        #         search_prompt=research_prompt,
+        #         gen_prompt=portfolio_prompt,
+        #     )
+        # )
+        ### <-- Till we finish everything but web research --> ###
+        user_portfolio = "tests/1_test_user_portfolio.md"
+        company_portfolio = "tests/1_test_company_portfolio.md"
+
+        # with open(user_portfolio, "w", encoding="utf-8") as file:
+        #     file.write(self.user_portfolio)
+
+        # with open(company_portfolio, "w", encoding="utf-8") as file:
+        #     file.write(self.company_portfolio)
+
+        ### <-- Till we finish everything but web research --> ###
+
+        with open(user_portfolio, "r", encoding="utf-8") as file:
+            self.user_portfolio = file.read()
+
+        with open(company_portfolio, "r", encoding="utf-8") as file:
+            self.company_portfolio = file.read()
+
+        ### <-- Till we finish everything but web research --> ###
         logger.info("Company Portfolio Created")
 
     @observe()

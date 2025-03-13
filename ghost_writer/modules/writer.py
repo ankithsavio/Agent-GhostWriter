@@ -24,7 +24,7 @@ def post_workflow(
     formatted_conv = "\n".join(
         f"role: {item['role']}\ncontent: {item['content']}" for item in conversation
     )
-    llm = StructLLM(provider="google")
+    llm = StructLLM(provider="google", temperature=0.7)
     document_updates = llm(
         prompt=str(
             Prompt(
