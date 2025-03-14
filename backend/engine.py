@@ -3,7 +3,8 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 
 from typing import List, Dict
-from langfuse.decorators import observe
+
+# from langfuse.decorators import observe
 from backend.models.user import UserReport
 from backend.models.company import CompanyReport
 from backend.models.search import SearchQueries, RAGQueries
@@ -17,6 +18,7 @@ from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 
 from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 
 class WriterEngine:
@@ -30,7 +32,7 @@ class WriterEngine:
         self.workflow = Storm()
         self.vectordb = Qdrant()
 
-    @observe()
+    # @observe()
     def get_job_kb(self, text):
         """
         Generates company knowledge base using the job description.
@@ -41,12 +43,11 @@ class WriterEngine:
             source=text,
             source_name=self.company_collection_name,
             model=CompanyReport,
-            anonymize=False,  # for web search
             research=True,
         )
         logger.info("Company Knowledge Base Created")
 
-    @observe()
+    # @observe()
     def get_user_kb(self, files):
         """
         Generates user knowledge base using the uploaded files.
@@ -57,12 +58,11 @@ class WriterEngine:
             source=files,
             source_name=self.user_collection_name,
             model=UserReport,
-            anonymize=False,
             research=False,
         )
         logger.info("User Knowledge Base Created")
 
-    @observe()
+    # @observe()
     def load_reports(self):
         """
         Generates structured reports of the user and the company.
@@ -87,7 +87,7 @@ class WriterEngine:
 
         logger.info("Company Report Loaded")
 
-    @observe()
+    # @observe()
     def create_portfolios(self):
         """
         Generates knowledge documents for the user and the company using the knowledge builder module
@@ -138,14 +138,16 @@ class WriterEngine:
 
         with open(user_portfolio, "r", encoding="utf-8") as file:
             self.user_portfolio = file.read()
+        self.user_knowledge_base.split_and_upload_document(self.user_portfolio)
 
         with open(company_portfolio, "r", encoding="utf-8") as file:
             self.company_portfolio = file.read()
+        self.company_knowledge_base.split_and_upload_document(self.company_portfolio)
 
         ### <-- Till we finish everything but web research --> ###
         logger.info("Company Portfolio Created")
 
-    @observe()
+    # @observe()
     def cross_knowledge_base_query(self, entity, queries: List[str]):
         """
         Query across multiple collections in Qdrant
@@ -231,17 +233,17 @@ class WriterEngine:
         )
         logger.info("Prompts are set for orchestration")
 
-    @observe()
+    # @observe()
     def generate_personas(self):
         """
         Generate personas for multi-agent communication.
 
         """
-        personas = self.workflow.get_personas(prompt=self.persona_prompt)
+        self.personas = self.workflow.get_personas(prompt=self.persona_prompt)
         logger.info("Personas successfully created")
-        return personas
+        return self.personas
 
-    @observe()
+    # @observe()
     def conversation_simulation(self, worker: Worker):
         """
         Simulates a single conversation for a worker with the expert.
@@ -250,7 +252,7 @@ class WriterEngine:
 
         """
         logger.info("Initiating conversation simulation")
-        iterations = 10
+        iterations = 3  # 10
         for _ in range(iterations):
             message = self.workflow.get_questions(worker, self.question_prompt)
             if "thank you so much for your help" in message.content.lower():
@@ -266,7 +268,7 @@ class WriterEngine:
         logger.info("Conversation simulation completed")
         return worker.conversation.get_messages()
 
-    @observe()
+    # @observe()
     def parallel_conversation(self, personas: List[Worker]):
         """
         Starts conversation_simulation in parallel among many workers.
@@ -288,3 +290,100 @@ class WriterEngine:
                 conversations.append({worker: conversation_history})
         logger.info("Parallel Conversation Completed")
         return conversations
+
+    def post_workflow(self):
+
+        from llms.basellm import LLM
+
+        reasoning_model = LLM(
+            provider="google", model="gemini-2.0-flash-thinking-exp-01-21"
+        )
+
+        self.reports = {"resume": {}, "cover_letter": {}}
+        lock = Lock()
+
+        def create_reports(worker: Worker):
+            format = """
+            # Targeted Keywords & Skills:
+
+            [List 2-3 most impactful keywords to add or emphasize in the {doc}, based on conversation about company/role. E.g., "Cloud Computing", "Agile Methodologies", "Customer Success Metrics"]
+
+            [Mention 1-2 specific skills to highlight more prominently based on company needs. E.g., "Emphasize your Python skills in the Skills and Projects sections", "Showcase experience with Salesforce CRM in your Experience bullets."]
+
+            [Note any skills to de-emphasize if they are less relevant to the target company, but only if clearly discussed. E.g., "Reduce focus on legacy system experience, shift to modern tech."]
+            
+            # Company & Role Alignment:
+
+            [Identify 1-2 specific aspects of the company/role mentioned in the conversation that should be directly addressed in the {doc}. E.g., "Highlight your experience in the FinTech industry to align with their sector focus.", "Showcase projects demonstrating innovation as it's a company value."]
+
+            [Suggest 1-2 sections or bullet points where this alignment can be explicitly shown. E.g., "In your Summary, mention your interest in contributing to a 'mission-driven company' (as discussed).", "In your 'Project X' description, link it to solving a problem similar to those in the [Company's Industry]."]
+
+            # Experience Section - Impact & Quantify:
+
+            [Point out 1-2 experience bullet points that could be strengthened by quantification. E.g., "Quantify the 'improved efficiency' in your role at Company Y - use numbers or percentages.", "For 'managed projects', specify the team size and budget if possible."]
+
+            [Suggest 1-2 action verbs to use to make experience descriptions more impactful and results-oriented. E.g., "Replace 'Responsible for' with stronger verbs like 'Spearheaded', 'Led', or 'Achieved'.", "Use verbs that imply impact, like 'Reduced', 'Increased', 'Optimized'."]
+
+            # Summary/Profile Enhancement:
+
+            [Suggest 1-2 adjustments to the summary to make it more targeted and compelling for the company. E.g., "Tailor your summary to directly mention your interest in [Company's Mission/Industry].", "Add a sentence highlighting your key value proposition in the first line."]
+
+            [Recommend if the summary should be more specific or more general based on the conversation context and target company type. E.g., "Make the summary more specific to the 'Data Science' role.", "Keep the summary slightly broader to accommodate various roles at a large corporation."]
+
+            # Formatting & Clarity (If applicable and discussed):
+
+            [If formatting issues were discussed or are apparent, give 1-2 brief formatting tips. E.g., "Ensure consistent date formatting throughout.", "Break up large paragraphs into bullet points for readability."]
+
+            [If clarity issues were discussed, suggest 1-2 clarity improvements. E.g., "Simplify technical jargon in the 'Skills' section for broader readability.", "Ensure each bullet point clearly starts with your action and then the result."]
+            """
+            formatted_conv = "\n".join(
+                f"role: {item['role']}\nmessage: {item['content']}"
+                for item in worker.conversation.get_messages()
+            )
+
+            def create_resume_report():
+                doc = "resume"
+                prompt = Prompt(
+                    prompt="You are an expert resume editor and you are provided with an information_seeking_conversation and user_resume. You have to provide a report to update user_resume using the provided format",
+                    user_resume=self.user_knowledge_base.source[0](),
+                    information_seeking_conversation=formatted_conv,
+                    format=format.format(doc=doc),
+                    instructions="""1. Strictly follow the format provided. Including sections and their instructions
+                    2. Report must be derived from the information_seeking_conversation. If information_seeking_conversation does target a particular section put "LGTM" in that section.
+                    3. Only output the resume report in the provided format. Do not output any additional details.""",
+                )
+                response = reasoning_model(str(prompt))
+                return response
+
+            def create_cover_letter_report():
+                doc = "cover letter"
+                prompt = Prompt(
+                    prompt="You are an expert cover letter editor and you are provided with an information_seeking_conversation and user_cover_letter. You have to provide a report to update user_cover_letter using the provided format",
+                    user_cover_letter=self.user_knowledge_base.source[1](),
+                    information_seeking_conversation=formatted_conv,
+                    format=format.format(doc=doc),
+                    instructions="""1. Strictly follow the format provided. Including sections and their instructions
+                    2. Report must be derived from the information_seeking_conversation. If information_seeking_conversation does target a particular section put "LGTM" in that section.
+                    3. Only output the cover letter report in the provided format. Do not output any additional details.""",
+                )
+                response = reasoning_model(str(prompt))
+                return response
+
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures_to_doc = {
+                    executor.submit(create_resume_report): "resume",
+                    executor.submit(create_cover_letter_report): "cover_letter",
+                }
+
+                for future in futures_to_doc:
+                    doc = futures_to_doc[future]
+                    with lock:
+                        self.reports[doc] |= {worker.role: future.result()}
+            return
+
+        with ThreadPoolExecutor(max_workers=len(self.personas)) as executor:
+            for worker in self.personas:
+                executor.submit(create_reports, worker)
+
+            executor.shutdown(wait=True)
+        return True
