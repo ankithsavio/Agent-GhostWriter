@@ -8,8 +8,9 @@ from tenacity import (
     wait_random_exponential,
     retry_if_exception_type,
 )
-from langfuse.openai import openai
-from langfuse.decorators import observe
+
+# from langfuse.openai import openai
+# from langfuse.decorators import observe
 from transformers import AutoTokenizer
 
 load_dotenv(".env")
@@ -42,7 +43,7 @@ class BaseLLM:
             api_key = os.getenv("GEMINI_API_KEY", None)
             self.default_model = "gemini-2.0-flash"
 
-        self.client = openai.OpenAI(
+        self.client = oai.OpenAI(
             base_url=base_url,
             api_key=api_key,
         )
@@ -73,9 +74,9 @@ class LLM(BaseLLM):
             "max_completion_tokens": None,
         }
 
-    @observe(name="LLM_Generate")
+    # @observe(name="LLM_Generate")
     @retry(
-        retry=retry_if_exception_type(oai.RateLimitError),
+        retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
@@ -91,6 +92,8 @@ class LLM(BaseLLM):
             response = self.client.chat.completions.create(**self.config)
             return response
         except oai.RateLimitError as e:
+            raise
+        except oai.InternalServerError as e:
             raise
 
     def __call__(self, prompt, **kwargs):
@@ -118,9 +121,9 @@ class StructLLM(BaseLLM):
             "max_completion_tokens": None,
         }
 
-    @observe(name="Struct_Generate")
+    # @observe(name="Struct_Generate")
     @retry(
-        retry=retry_if_exception_type(oai.RateLimitError),
+        retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
@@ -137,6 +140,8 @@ class StructLLM(BaseLLM):
             response = self.client.beta.chat.completions.parse(**self.config)
             return response
         except oai.RateLimitError as e:
+            raise
+        except oai.InternalServerError as e:
             raise
 
     def __call__(self, prompt, format, **kwargs):
@@ -157,16 +162,16 @@ class EmbeddingModel:
     """
 
     def __init__(self):
-        self.client = openai.OpenAI(
+        self.client = oai.OpenAI(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
         self.model = "text-embedding-004"
         self.config = {"model": self.model, "input": None}
 
-    @observe(name="Embedding_Generate")
+    # @observe(name="Embedding_Generate")
     @retry(
-        retry=retry_if_exception_type(oai.RateLimitError),
+        retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
@@ -182,6 +187,8 @@ class EmbeddingModel:
             response = self.client.embeddings.create(**self.config)
             return response
         except oai.RateLimitError as e:
+            raise
+        except oai.InternalServerError as e:
             raise
 
     def __call__(self, texts: List[str]):
