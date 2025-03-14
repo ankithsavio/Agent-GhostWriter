@@ -248,8 +248,8 @@ export function Page2() {
       action: "accept_suggestion",
       suggestion: {
         content: suggestion.content,
+        reason: suggestion.reason,
         replacement: finalReplacement,
-        reason: suggestion.reason
       }
     };
 

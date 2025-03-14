@@ -32,6 +32,9 @@ export function Page1() {
   const socketsRef = useRef<Record<string, WebSocket>>({})
 
   useEffect(() => {
+    let isComponentMounted = true;
+    const POLLING_INTERVAL = 5000; // 5 seconds
+
     async function fetchConversationNames() {
       try {
         const response = await fetch(`${API_BASE_URL}/conversations`)
@@ -39,22 +42,40 @@ export function Page1() {
           throw new Error("Failed to fetch conversation names")
         }
         const data = await response.json()
-        const names = data.content || [] // Extract the content array
-        setConversationNames(names)
-        if (names.length > 0) {
-          setActiveTab(names[0])
+        const names = data.content || [] 
+        
+        if (isComponentMounted) {
+          setConversationNames(names)
+          setActiveTab(prevActiveTab => {
+            if (!prevActiveTab && names.length > 0) {
+              return names[0];
+            }
+            return prevActiveTab;
+          });
         }
       } catch (error) {
         console.error("Error fetching conversation names:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to fetch conversation names. Please try again later.",
-        })
+        if (isComponentMounted) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to fetch conversation names. Please try again later.",
+          })
+        }
       }
     }
 
-    fetchConversationNames()
+    // Initial fetch
+    fetchConversationNames();
+    
+    // Set up polling interval
+    const intervalId = setInterval(fetchConversationNames, POLLING_INTERVAL);
+
+    // Clean up interval when component unmounts
+    return () => {
+      isComponentMounted = false;
+      clearInterval(intervalId);
+    };
   }, [toast])
 
   useEffect(() => {
