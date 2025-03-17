@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 
 load_dotenv(".env")
 
+import re
 from typing import List, Dict
 
 # from langfuse.decorators import observe
@@ -17,7 +18,7 @@ from ghost_writer.modules.writer import post_workflow
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 
 from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from threading import Lock
 
 
@@ -330,7 +331,7 @@ class WriterEngine:
 
             [Recommend if the summary should be more specific or more general based on the conversation context and target company type. E.g., "Make the summary more specific to the 'Data Science' role.", "Keep the summary slightly broader to accommodate various roles at a large corporation."]
 
-            # Formatting & Clarity (If applicable and discussed):
+            # Formatting & Clarity:
 
             [If formatting issues were discussed or are apparent, give 1-2 brief formatting tips. E.g., "Ensure consistent date formatting throughout.", "Break up large paragraphs into bullet points for readability."]
 
@@ -369,6 +370,11 @@ class WriterEngine:
                 response = reasoning_model(str(prompt))
                 return response
 
+            def process_report(text):
+                # match topic and its content
+                pattern = r"# .*?:[\s\S]*?(?=# |$)"
+                return re.findall(pattern, text, re.DOTALL)
+
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures_to_doc = {
                     executor.submit(create_resume_report): "resume",
@@ -378,12 +384,58 @@ class WriterEngine:
                 for future in futures_to_doc:
                     doc = futures_to_doc[future]
                     with lock:
-                        self.reports[doc] |= {worker.role: future.result()}
+                        report = future.result()
+                        self.reports[doc] |= {
+                            worker.role: {
+                                "report": report,
+                                "processed_report": process_report(report),
+                            }
+                        }
             return
 
-        with ThreadPoolExecutor(max_workers=len(self.personas)) as executor:
-            for worker in self.personas:
-                executor.submit(create_reports, worker)
+        def combine_report_section(workers_section):
+            work_section_template = """
+            Source: {worker}
+            Report: {content}
+            """
+            section = ""
+            for worker in workers_section:
+                worker_content = work_section_template.format(
+                    worker=worker, content=workers_section[worker]
+                )
+                section += worker_content
 
-            executor.shutdown(wait=True)
-        return True
+            prompt = Prompt(
+                prompt="Combine information for a single in a report from mutliple sources",
+                sources=section,
+                example_format="""
+                            # Topic 
+                            source_name : content
+                            source_name_2 : content_2
+                            """,
+                instructions="""
+                            1. Retain all informations from the sources
+                            2. Remove dubplicates
+                            3. Merge multiple sources into a single report using the example_format keeping track of sources as bullet points
+                            """,
+            )
+            response = reasoning_model(str(prompt))
+            return response
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = []
+            for worker in self.personas:
+                futures.append(executor.submit(create_reports, worker))
+            
+            wait(futures)
+            futures.clear()
+            for doc in self.reports:
+                sections = 5
+                for i in range(sections):
+                    worker_section = {}
+                    for worker in self.reports[doc]:
+                        worker_section |= {worker : self.reports[doc][worker]["processed_report"][i]}
+                    futures.append({executor.submit(combine_report_section, worker_section): (doc, i)})
+            
+            # TODO: concat sections
+                
