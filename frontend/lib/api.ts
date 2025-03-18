@@ -133,3 +133,43 @@ export async function uploadDocuments(doc1: File, doc2: File) {
   return response.json()
 }
 
+export async function fetchResumeReport(signal?: AbortSignal) {
+  const response = await fetch(`${API_BASE_URL}/resume_report`, {
+    method: "GET",
+    headers: {
+      "ngrok-skip-browser-warning": "true",
+    },
+    signal
+  })
+
+  if (response.status === 202) {
+    return { processing: true }
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch resume report: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+export async function fetchCoverLetterReport(signal?: AbortSignal) {
+  const response = await fetch(`${API_BASE_URL}/cover_letter_report`, {
+    method: "GET",
+    headers: {
+      "ngrok-skip-browser-warning": "true",
+    },
+    signal
+  })
+
+  if (response.status === 202) {
+    return { processing: true }
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch cover letter report: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
