@@ -1,29 +1,23 @@
-import uuid
+import os
 import time
 import requests
 import asyncio
 import random
-from typing import List
+from typing import List, Dict
 from trafilatura import extract
 from urllib.parse import urlparse
-from langfuse.decorators import observe
-from crawl4ai import AsyncWebCrawler
+from crawl4ai import AsyncWebCrawler, CrawlResult
 from ghost_writer.modules.vectordb import Qdrant
 from llms.basellm import LLM
+from langchain_community.tools import DuckDuckGoSearchResults
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
-class SearXNG:
+class BaseWebSearch:
     def __init__(self):
         """
         Initialize the search module.
         """
-        self.instance = "http://localhost:8888/search"
-        self.params = {
-            "format": "json",
-            "categories": "general",
-            "language": "en",
-        }
         self.chunk_size = 2000
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
@@ -54,7 +48,7 @@ class SearXNG:
         self.scraped_urls = []
         self.excluded_urls = ["linkedin.com"]
 
-    def get_domain(self, url):
+    def get_domain(self, url: str):
         """
         Extracts the domain name from a given URL.
         Args:
@@ -66,45 +60,7 @@ class SearXNG:
         parsed_url = urlparse(url)
         return parsed_url.netloc
 
-    def get_urls(self, query, limit=3, **kwargs):
-        """
-        Fetch search results from a specified search engine instance based on the given query.
-        Args:
-            query (str): The search query string to be executed
-            limit (int, optional): Maximum number of results to return. Defaults to 5.
-            **kwargs: Additional parameters to be passed to the search request
-
-        Returns:
-            list: A list of dictionaries containing search results. Each dictionary contains:
-                - title (str): Title of the search result
-                - url (str): URL of the search result
-                Results are filtered to exclude previously scraped URLs and excluded domains.
-                Maximum length is determined by limit parameter.
-        """
-        self.params |= {"q": query, **kwargs}
-
-        delay = random.uniform(1, 5)
-        time.sleep(delay)
-
-        try:
-            response = requests.get(self.instance, params=self.params)
-            response.raise_for_status()
-
-            data = response.json()
-
-            return [
-                {"title": result.get("title", ""), "url": result.get("url", "")}
-                for result in data["results"]
-                if result["url"] not in self.scraped_urls
-                and self.get_domain(result["url"]) not in self.excluded_urls
-            ][:limit]
-
-        except requests.exceptions.RequestException as e:
-            print(f"Request failed: {e}")
-        except KeyError as e:
-            print(f"Unexpected JSON format: {e}")
-
-    def clean_html(self, content):
+    def clean_html(self, content: CrawlResult):
         """
         Cleans HTML content by extracting plain text.
         Args:
@@ -173,7 +129,7 @@ class SearXNG:
 
         return asyncio.run(_crawl())
 
-    def split_documents(self, content_list):
+    def split_documents(self, content_list: List[Dict[str, str]]):
         """
         Split documents into smaller chunks for processing.
         Args:
@@ -203,7 +159,7 @@ class SearXNG:
             doc_list.extend(chunk_list)
         return doc_list
 
-    def generate_fake_document(self, query):
+    def generate_fake_document(self, query: str):
         """
         Generates a hypothetical document using the HyDE (Hypothetical Document Embedding) approach.
         Args:
@@ -232,7 +188,14 @@ class SearXNG:
                 - url (str): The URL of the search result
                 - text (str): The text content of the search result
         """
-
+        if not payloads:
+            return [
+                {
+                    "title": None,
+                    "url": None,
+                    "text": "No search results",
+                }
+            ]
         list_of_payload = [
             {
                 "title": result.payload["doc"]["title"],
@@ -243,8 +206,7 @@ class SearXNG:
         ]
         return list_of_payload
 
-    @observe()
-    def run(self, query):
+    def run(self, query: str):
         """
         Executes a web search, retrieves content, and performs vector database operations.
         Args:
@@ -256,16 +218,17 @@ class SearXNG:
 
         results = self.get_urls(query)
         content_list = self.get_web_content(results)
+        if not content_list:
+            return [{"query": query, "result": self.format_payloads([])}]
         self.vectordb.upsert_documents(
             self.collection_name, self.split_documents(content_list)
         )
         result = self.vectordb.query_documents(
             self.collection_name, self.generate_fake_document(query)
         )
-        return result
+        return [{"query": query, "result": self.format_payloads(result)}]
 
-    @observe()
-    def run_many(self, queries):
+    def run_many(self, queries: List[str]):
         """
         Process multiple search queries, fetch web content, and store in vector database.
         See run method.
@@ -276,6 +239,8 @@ class SearXNG:
             result = self.get_urls(query)
             url_list.extend(result)
         content_list = self.get_web_content(url_list)
+        if not content_list:
+            return [{"query": query, "result": self.format_payloads([])}]
         self.vectordb.upsert_documents(
             self.collection_name, self.split_documents(content_list)
         )
@@ -286,3 +251,146 @@ class SearXNG:
             )
             result_list.append({"query": query, "result": self.format_payloads(result)})
         return result_list
+
+    def get_urls(self):
+
+        raise NotImplementedError
+
+
+class SearXNGWeb(BaseWebSearch):
+    def __init__(self):
+        """
+        Initialize the search module.
+        """
+        self.instance = "http://localhost:8888/search"
+        self.params = {
+            "format": "json",
+            "categories": "general",
+            "language": "en",
+        }
+
+    def get_urls(self, query: str, limit: int = 3, **kwargs):
+        """
+        Fetch search results from a specified search engine instance based on the given query.
+        Args:
+            query (str): The search query string to be executed
+            limit (int, optional): Maximum number of results to return. Defaults to 5.
+            **kwargs: Additional parameters to be passed to the search request
+
+        Returns:
+            list: A list of dictionaries containing search results. Each dictionary contains:
+                - title (str): Title of the search result
+                - url (str): URL of the search result
+                Results are filtered to exclude previously scraped URLs and excluded domains.
+                Maximum length is determined by limit parameter.
+        """
+        self.params |= {"q": query, **kwargs}
+
+        delay = random.uniform(5, 10)  # manual delay
+        time.sleep(delay)
+
+        try:
+            response = requests.get(self.instance, params=self.params)
+            response.raise_for_status()
+
+            data = response.json()
+
+            return [
+                {"title": result.get("title", ""), "url": result.get("url", "")}
+                for result in data["results"]
+                if result["url"] not in self.scraped_urls
+                and self.get_domain(result["url"]) not in self.excluded_urls
+            ][:limit]
+
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed: {e}")
+        except KeyError as e:
+            print(f"Unexpected JSON format: {e}")
+
+
+class GoogleWeb(BaseWebSearch):
+    def __init__(self):
+        """
+        Initialize the Google search module.
+        """
+        self.instance = "https://www.googleapis.com/customsearch/v1?"
+        self.params = {
+            "key": os.getenv("GOOGLE_WEB_API_KEY"),
+            "cx": os.getenv("GOOGLE_WEB_CX"),
+        }
+
+    def get_urls(self, query: str, limit: int = 3, **kwargs):
+        """
+        Fetch search results from a specified search engine instance based on the given query.
+        Args:
+            query (str): The search query string to be executed
+            limit (int, optional): Maximum number of results to return. Defaults to 5.
+            **kwargs: Additional parameters to be passed to the search request
+
+        Returns:
+            list: A list of dictionaries containing search results. Each dictionary contains:
+                - title (str): Title of the search result
+                - url (str): URL of the search result
+                Results are filtered to exclude previously scraped URLs and excluded domains.
+                Maximum length is determined by limit parameter.
+        """
+        self.params |= {"q": query, **kwargs}
+
+        try:
+            response = requests.get(self.instance, params=self.params)
+            response.raise_for_status()
+
+            data = response.json()
+
+            return [
+                {"title": result.get("title", ""), "url": result.get("link", "")}
+                for result in data["items"]
+                if result["link"] not in self.scraped_urls
+                and self.get_domain(result["link"]) not in self.excluded_urls
+            ][:limit]
+
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed: {e}")
+        except KeyError as e:
+            print(f"Unexpected JSON format: {e}")
+
+
+class DDGWeb(BaseWebSearch):
+    def __init__(self):
+        """
+        Initialize the DuckDuckGo search module.
+        """
+        self.client = DuckDuckGoSearchResults(
+            output_format="list", keys_to_include=["title", "link"]
+        )
+
+    def get_urls(self, query, limit=5, **kwargs):
+        """
+        Fetch search results from a specified search engine instance based on the given query.
+        Args:
+            query (str): The search query string to be executed
+            limit (int, optional): Maximum number of results to return. Defaults to 5.
+            **kwargs: Additional parameters to be passed to the search request
+
+        Returns:
+            list: A list of dictionaries containing search results. Each dictionary contains:
+                - title (str): Title of the search result
+                - url (str): URL of the search result
+                Results are filtered to exclude previously scraped URLs and excluded domains.
+                Maximum length is determined by limit parameter.
+        """
+        delay = random.uniform(3, 5)
+        time.sleep(delay)
+
+        try:
+            data = self.client.invoke(query)
+
+            return [
+                {"title": result.get("title", ""), "url": result.get("link", "")}
+                for result in data
+                if result["link"] not in self.scraped_urls
+                and self.get_domain(result["link"]) not in self.excluded_urls
+            ][:limit]
+
+        except Exception as e:
+            print(f"Unexpected error fetching urls: {e}")
