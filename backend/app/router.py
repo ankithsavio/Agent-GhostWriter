@@ -24,10 +24,7 @@ class EngineRouter:
     def __init__(self):
         self.router = APIRouter()
         self.engine = WriterEngine()
-        self.active_websockets: Dict[str, Dict[str, WebSocket]] = {
-            "personas": {},
-            "documents": {},
-        }
+        self.active_websockets: Dict[str, WebSocket] = {}
         self.document_event = asyncio.Event()
         self.portfolio_event = asyncio.Event()
         self.persona_event = asyncio.Event()
@@ -35,6 +32,7 @@ class EngineRouter:
         self.register_upload_routes()
         self.register_document_view_routes()
         self.register_conversation_view_routes()
+        self.register_restart_route()
 
     def register_upload_routes(self):
 
@@ -189,7 +187,7 @@ class EngineRouter:
                     - An error message with a 500 status code on failure
             """
             await websocket.accept()
-            self.active_websockets["personas"][persona_name] = websocket
+            self.active_websockets[persona_name] = websocket
 
             if not self.persona_event.is_set():
                 await self.persona_event.wait()
@@ -212,9 +210,49 @@ class EngineRouter:
                 print(f"Error in WebSocket {persona_name}: {e}")
 
             finally:
-                if persona_name in self.active_websockets["personas"]:
-                    del self.active_websockets["personas"][persona_name]
+                if persona_name in self.active_websockets:
+                    del self.active_websockets[persona_name]
                 await websocket.close()
+
+    def register_restart_route(self):
+        @self.router.post("/restart")
+        async def restart():
+            """
+            Restarts the application by disconnecting websockets and re-initializing the engine.
+
+            Returns:
+                JSONResponse: Response containing either:
+                    - Success message
+                    - An error message with a 500 status code on failure
+            """
+            try:
+                for persona, websocket in self.active_websockets.items():
+                    try:
+                        await websocket.close(reason="restart")
+                        del self.active_websockets[persona]
+                    except Exception as e:
+                        print(f"Error closing websocket {persona}: {e}")
+
+                for event in [
+                    self.document_event,
+                    self.portfolio_event,
+                    self.persona_event,
+                    self.post_workflow_event,
+                ]:
+                    event.clear()
+
+                self.engine = WriterEngine()
+
+                if hasattr(self, "personas"):
+                    delattr(self, "personas")
+
+                return JSONResponse(
+                    {
+                        "message": "Application restarted successfully",
+                    }
+                )
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
 
     async def monitor_queue(self):
         """
@@ -227,7 +265,7 @@ class EngineRouter:
                 except queue.Empty:
                     await asyncio.sleep(0.1)
                     continue
-                websocket = self.active_websockets["personas"][worker.role]
+                websocket = self.active_websockets[worker.role]
                 await websocket.send_json(worker.conversation.get_messages())
             except Exception as e:
                 print(f"Error sending message from: {e}")
