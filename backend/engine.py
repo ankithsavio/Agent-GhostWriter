@@ -2,19 +2,15 @@ from dotenv import load_dotenv
 
 load_dotenv(".env")
 
-import re
 from typing import List, Dict
-
-# from langfuse.decorators import observe
 from backend.models.user import UserReport
 from backend.models.company import CompanyReport
-from backend.models.search import SearchQueries, RAGQueries
+from backend.models.search import SearchQueries, RAGQueries, Entity
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.workers import Worker, Message
 from ghost_writer.utils.logger import logger
 from ghost_writer.modules.vectordb import Qdrant
 from ghost_writer.modules.storm import Storm
-from ghost_writer.modules.writer import post_workflow
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 
 from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT
@@ -33,8 +29,7 @@ class WriterEngine:
         self.workflow = Storm()
         self.vectordb = Qdrant()
 
-    # @observe()
-    def get_job_kb(self, text):
+    def get_job_kb(self, text: str):
         """
         Generates company knowledge base using the job description.
         Args:
@@ -48,8 +43,7 @@ class WriterEngine:
         )
         logger.info("Company Knowledge Base Created")
 
-    # @observe()
-    def get_user_kb(self, files):
+    def get_user_kb(self, files: List[str]):
         """
         Generates user knowledge base using the uploaded files.
         Args:
@@ -63,7 +57,6 @@ class WriterEngine:
         )
         logger.info("User Knowledge Base Created")
 
-    # @observe()
     def load_reports(self):
         """
         Generates structured reports of the user and the company.
@@ -88,68 +81,45 @@ class WriterEngine:
 
         logger.info("Company Report Loaded")
 
-    # @observe()
     def create_portfolios(self):
         """
         Generates knowledge documents for the user and the company using the knowledge builder module
 
         """
-        # portfolio_prompt = Prompt(
-        #     prompt="Generate a single comperehensive portfolio article using the provided outline and two structured user reports",
-        #     user_report_1=self.user_report[0].model_dump(),
-        #     user_report_2=self.user_report[1].model_dump(),
-        # )
-        # self.user_portfolio = self.user_knowledge_base.create_knowledge_document(
-        #     gen_prompt=portfolio_prompt
-        # )
-        # logger.info("User Portfolio Created")
+        portfolio_prompt = Prompt(
+            prompt="Generate a single comperehensive portfolio article using the provided outline and two structured user reports",
+            user_report_1=self.user_report[0].model_dump(),
+            user_report_2=self.user_report[1].model_dump(),
+        )
+        self.user_portfolio = self.user_knowledge_base.create_knowledge_document(
+            gen_prompt=portfolio_prompt
+        )
+        logger.info("User Portfolio Created")
 
-        # research_prompt = Prompt(
-        #     prompt=QUERY_PROMPT,
-        #     company_report=self.company_report[0].model_dump(),
-        # )
-        # portfolio_prompt = Prompt(
-        #     prompt=f"You are a **technical writer** specializing in company reports. Your task is to write specific sections of the report for **{self.company_report[0].company.name}** using the web search results.",
-        #     instructions=f"""
-        #     1. Content Relevance: Ensure all added content is directly relevant to **{self.company_report[0].company.name}**. Do not include information about other companies or irrelevant topics. Focus on information that directly supports the outline sections.
-        #     2. Subsection and Content: For the provided query and section, create a single appropriate subsection using the format - ### Subsection Title followed by its content. Generate this content directly.
-        #     3. Outline Adherence: Strictly adhere to the provided section and outline. Do not add new sections, focus only on the given section and appropriately extend the provided outline.
-        #     4. No Irrelevant Information: If the search results do not contain relevant information for the chosen specific section of the outline, leave that section blank. Do not invent or assume information.
-        #     5. Concise Integration: Integrate the information from the search results concisely and effectively into the outline.
-        #     """,
-        # )
-        # self.company_portfolio = (
-        #     self.company_knowledge_base.create_knowledge_document_with_research(
-        #         search_model=SearchQueries,
-        #         search_prompt=research_prompt,
-        #         gen_prompt=portfolio_prompt,
-        #     )
-        # )
-        ### <-- Till we finish everything but web research --> ###
-        user_portfolio = "tests/1_test_user_portfolio.md"
-        company_portfolio = "tests/1_test_company_portfolio.md"
-
-        # with open(user_portfolio, "w", encoding="utf-8") as file:
-        #     file.write(self.user_portfolio)
-
-        # with open(company_portfolio, "w", encoding="utf-8") as file:
-        #     file.write(self.company_portfolio)
-
-        ### <-- Till we finish everything but web research --> ###
-
-        with open(user_portfolio, "r", encoding="utf-8") as file:
-            self.user_portfolio = file.read()
-        self.user_knowledge_base.split_and_upload_document(self.user_portfolio)
-
-        with open(company_portfolio, "r", encoding="utf-8") as file:
-            self.company_portfolio = file.read()
-        self.company_knowledge_base.split_and_upload_document(self.company_portfolio)
-
-        ### <-- Till we finish everything but web research --> ###
+        research_prompt = Prompt(
+            prompt=QUERY_PROMPT,
+            company_report=self.company_report[0].model_dump(),
+        )
+        portfolio_prompt = Prompt(
+            prompt=f"You are a **technical writer** specializing in company reports. Your task is to write specific sections of the report for **{self.company_report[0].company.name}** using the web search results.",
+            instructions=f"""
+            1. Content Relevance: Ensure all added content is directly relevant to **{self.company_report[0].company.name}**. Do not include information about other companies or irrelevant topics. Focus on information that directly supports the outline sections.
+            2. Subsection and Content: For the provided query and section, create a single appropriate subsection using the format - ### Subsection Title followed by its content. Generate this content directly.
+            3. Outline Adherence: Strictly adhere to the provided section and outline. Do not add new sections, focus only on the given section and appropriately extend the provided outline.
+            4. No Irrelevant Information: If the search results do not contain relevant information for the chosen specific section of the outline, leave that section blank. Do not invent or assume information.
+            5. Concise Integration: Integrate the information from the search results concisely and effectively into the outline.
+            """,
+        )
+        self.company_portfolio = (
+            self.company_knowledge_base.create_knowledge_document_with_research(
+                search_model=SearchQueries,
+                search_prompt=research_prompt,
+                gen_prompt=portfolio_prompt,
+            )
+        )
         logger.info("Company Portfolio Created")
 
-    # @observe()
-    def cross_knowledge_base_query(self, entity, queries: List[str]):
+    def cross_knowledge_base_query(self, entity: Entity, queries: List[str]):
         """
         Query across multiple collections in Qdrant
         """
@@ -234,7 +204,6 @@ class WriterEngine:
         )
         logger.info("Prompts are set for orchestration")
 
-    # @observe()
     def generate_personas(self):
         """
         Generate personas for multi-agent communication.
@@ -244,7 +213,6 @@ class WriterEngine:
         logger.info("Personas successfully created")
         return self.personas
 
-    # @observe()
     def conversation_simulation(self, worker: Worker):
         """
         Simulates a single conversation for a worker with the expert.
@@ -269,7 +237,6 @@ class WriterEngine:
         logger.info("Conversation simulation completed")
         return worker.conversation.get_messages()
 
-    # @observe()
     def parallel_conversation(self, personas: List[Worker]):
         """
         Starts conversation_simulation in parallel among many workers.
@@ -307,35 +274,35 @@ class WriterEngine:
             format = """
             # Targeted Keywords & Skills:
 
-            [List 2-3 most impactful keywords to add or emphasize in the {doc}, based on conversation about company/role. E.g., "Cloud Computing", "Agile Methodologies", "Customer Success Metrics"]
+            List 2-3 most impactful keywords to add or emphasize in the {doc}, based on conversation about company/role. E.g., "Cloud Computing", "Agile Methodologies", "Customer Success Metrics"
 
-            [Mention 1-2 specific skills to highlight more prominently based on company needs. E.g., "Emphasize your Python skills in the Skills and Projects sections", "Showcase experience with Salesforce CRM in your Experience bullets."]
+            Mention 1-2 specific skills to highlight more prominently based on company needs. E.g., "Emphasize your Python skills in the Skills and Projects sections", "Showcase experience with Salesforce CRM in your Experience bullets."
 
-            [Note any skills to de-emphasize if they are less relevant to the target company, but only if clearly discussed. E.g., "Reduce focus on legacy system experience, shift to modern tech."]
+            Note any skills to de-emphasize if they are less relevant to the target company, but only if clearly discussed. E.g., "Reduce focus on legacy system experience, shift to modern tech."
             
             # Company & Role Alignment:
 
-            [Identify 1-2 specific aspects of the company/role mentioned in the conversation that should be directly addressed in the {doc}. E.g., "Highlight your experience in the FinTech industry to align with their sector focus.", "Showcase projects demonstrating innovation as it's a company value."]
+            Identify 1-2 specific aspects of the company/role mentioned in the conversation that should be directly addressed in the {doc}. E.g., "Highlight your experience in the FinTech industry to align with their sector focus.", "Showcase projects demonstrating innovation as it's a company value."
 
-            [Suggest 1-2 sections or bullet points where this alignment can be explicitly shown. E.g., "In your Summary, mention your interest in contributing to a 'mission-driven company' (as discussed).", "In your 'Project X' description, link it to solving a problem similar to those in the [Company's Industry]."]
+            Suggest 1-2 sections or bullet points where this alignment can be explicitly shown. E.g., "In your Summary, mention your interest in contributing to a 'mission-driven company' (as discussed).", "In your 'Project X' description, link it to solving a problem similar to those in the [Company's Industry]."
 
             # Experience Section - Impact & Quantify:
 
-            [Point out 1-2 experience bullet points that could be strengthened by quantification. E.g., "Quantify the 'improved efficiency' in your role at Company Y - use numbers or percentages.", "For 'managed projects', specify the team size and budget if possible."]
+            Point out 1-2 experience bullet points that could be strengthened by quantification. E.g., "Quantify the 'improved efficiency' in your role at Company Y - use numbers or percentages.", "For 'managed projects', specify the team size and budget if possible."
 
-            [Suggest 1-2 action verbs to use to make experience descriptions more impactful and results-oriented. E.g., "Replace 'Responsible for' with stronger verbs like 'Spearheaded', 'Led', or 'Achieved'.", "Use verbs that imply impact, like 'Reduced', 'Increased', 'Optimized'."]
+            Suggest 1-2 action verbs to use to make experience descriptions more impactful and results-oriented. E.g., "Replace 'Responsible for' with stronger verbs like 'Spearheaded', 'Led', or 'Achieved'.", "Use verbs that imply impact, like 'Reduced', 'Increased', 'Optimized'."
 
             # Summary/Profile Enhancement:
 
-            [Suggest 1-2 adjustments to the summary to make it more targeted and compelling for the company. E.g., "Tailor your summary to directly mention your interest in [Company's Mission/Industry].", "Add a sentence highlighting your key value proposition in the first line."]
+            Suggest 1-2 adjustments to the summary to make it more targeted and compelling for the company. E.g., "Tailor your summary to directly mention your interest in [Company's Mission/Industry].", "Add a sentence highlighting your key value proposition in the first line."
 
-            [Recommend if the summary should be more specific or more general based on the conversation context and target company type. E.g., "Make the summary more specific to the 'Data Science' role.", "Keep the summary slightly broader to accommodate various roles at a large corporation."]
+            Recommend if the summary should be more specific or more general based on the conversation context and target company type. E.g., "Make the summary more specific to the 'Data Science' role.", "Keep the summary slightly broader to accommodate various roles at a large corporation."
 
             # Formatting & Clarity:
 
-            [If formatting issues were discussed or are apparent, give 1-2 brief formatting tips. E.g., "Ensure consistent date formatting throughout.", "Break up large paragraphs into bullet points for readability."]
+            If formatting issues were discussed or are apparent, give 1-2 brief formatting tips. E.g., "Ensure consistent date formatting throughout.", "Break up large paragraphs into bullet points for readability."
 
-            [If clarity issues were discussed, suggest 1-2 clarity improvements. E.g., "Simplify technical jargon in the 'Skills' section for broader readability.", "Ensure each bullet point clearly starts with your action and then the result."]
+            If clarity issues were discussed, suggest 1-2 clarity improvements. E.g., "Simplify technical jargon in the 'Skills' section for broader readability.", "Ensure each bullet point clearly starts with your action and then the result."
             """
             formatted_conv = "\n".join(
                 f"role: {item['role']}\nmessage: {item['content']}"
@@ -349,7 +316,7 @@ class WriterEngine:
                     user_resume=self.user_knowledge_base.source[0](),
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
-                    instructions="""1. Strictly follow the format provided. Including sections and their instructions
+                    instructions="""1. Strictly follow the format provided. Including sections and their instructions.
                     2. Report must be derived from the information_seeking_conversation. If information_seeking_conversation does target a particular section put "LGTM" in that section.
                     3. Only output the resume report in the provided format. Do not output any additional details.""",
                 )
@@ -363,17 +330,12 @@ class WriterEngine:
                     user_cover_letter=self.user_knowledge_base.source[1](),
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
-                    instructions="""1. Strictly follow the format provided. Including sections and their instructions
-                    2. Report must be derived from the information_seeking_conversation. If information_seeking_conversation does target a particular section put "LGTM" in that section.
+                    instructions="""1. Strictly follow the format provided. Including sections and their instructions.
+                    2. Report must be derived from the information_seeking_conversation. If information_seeking_conversation does target a particular section put "LGTM" in that section and nothing else.
                     3. Only output the cover letter report in the provided format. Do not output any additional details.""",
                 )
                 response = reasoning_model(str(prompt))
                 return response
-
-            def process_report(text):
-                # match topic and its content
-                pattern = r"# .*?:[\s\S]*?(?=# |$)"
-                return re.findall(pattern, text, re.DOTALL)
 
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures_to_doc = {
@@ -385,38 +347,38 @@ class WriterEngine:
                     doc = futures_to_doc[future]
                     with lock:
                         report = future.result()
-                        self.reports[doc] |= {
-                            worker.role: {
-                                "report": report,
-                                "processed_report": process_report(report),
-                            }
-                        }
+                        self.reports[doc] |= {worker.role: report}
             return
 
-        def combine_report_section(workers_section):
-            work_section_template = """
+        def combine_report(workers: List[Worker], doc_report: Dict[str, str]):
+            report_template = """
+            ###
             Source: {worker}
-            Report: {content}
+            Report: \n{content}
+            ###
             """
             section = ""
-            for worker in workers_section:
-                worker_content = work_section_template.format(
-                    worker=worker, content=workers_section[worker]
+            for worker in workers:
+                worker_content = report_template.format(
+                    worker=worker.role, content=doc_report[worker.role]
                 )
                 section += worker_content
 
             prompt = Prompt(
-                prompt="Combine information for a single in a report from mutliple sources",
+                prompt="Combine provided reports into a single comprehensive report by adapting the format to accommodate for sources",
                 sources=section,
                 example_format="""
-                            # Topic 
-                            source_name : content
-                            source_name_2 : content_2
+                            # Report 
+                            ## Title
+                            Content as bullet points 
+                            ## Title 2
+                            Content as bullet points 2
                             """,
                 instructions="""
-                            1. Retain all informations from the sources
-                            2. Remove dubplicates
-                            3. Merge multiple sources into a single report using the example_format keeping track of sources as bullet points
+                            1. Retain all informations from the sources.
+                            2. Remove or merge dubplicates gracefully. If a section content is "LGTM" do not consider that source for that section.
+                            3. Merge multiple sources into a single report using the example_format extensively covering all important details in the sources.
+                            4. Only output the single report and no other additional details.
                             """,
             )
             response = reasoning_model(str(prompt))
@@ -426,16 +388,19 @@ class WriterEngine:
             futures = []
             for worker in self.personas:
                 futures.append(executor.submit(create_reports, worker))
-            
+
             wait(futures)
             futures.clear()
             for doc in self.reports:
-                sections = 5
-                for i in range(sections):
-                    worker_section = {}
-                    for worker in self.reports[doc]:
-                        worker_section |= {worker : self.reports[doc][worker]["processed_report"][i]}
-                    futures.append({executor.submit(combine_report_section, worker_section): (doc, i)})
-            
-            # TODO: concat sections
-                
+                futures.append(
+                    {
+                        executor.submit(
+                            combine_report, self.personas, self.reports[doc]
+                        ): doc
+                    }
+                )
+
+            for future_doc in futures:
+                future, doc = future_doc.popitem()
+                report = future.result()
+                self.reports[doc] = report

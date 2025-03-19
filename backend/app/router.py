@@ -1,8 +1,13 @@
-from fastapi import APIRouter, File, UploadFile, WebSocket, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    File,
+    UploadFile,
+    WebSocket,
+    BackgroundTasks,
+    WebSocketDisconnect,
+)
 from fastapi.responses import JSONResponse
-from backend.engine import WriterEngine, Prompt, post_workflow, Worker
-from ghost_writer.utils.diff import DiffDocument, Updates
-from ghost_writer.utils.logger import log_queue, logger
+from backend.engine import WriterEngine, Worker
 from typing import List, Dict, Tuple
 from pydantic import BaseModel
 import queue
@@ -26,12 +31,10 @@ class EngineRouter:
         self.document_event = asyncio.Event()
         self.portfolio_event = asyncio.Event()
         self.persona_event = asyncio.Event()
-        self.apply_function_event = asyncio.Event()
+        self.post_workflow_event = asyncio.Event()
         self.register_upload_routes()
         self.register_document_view_routes()
         self.register_conversation_view_routes()
-        self.register_function_routes()
-        self.register_logging_routes()
 
     def register_upload_routes(self):
 
@@ -112,25 +115,45 @@ class EngineRouter:
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
-        @self.router.websocket("/api/document/{number}")
-        async def view_documents(websocket: WebSocket, number: int):
+        @self.router.get("/resume_report")
+        async def get_resume_report():
             """
-            Websocket to retrieve the user documents, supports sending constant updates.
+            Retrieves the resume report after post workflow.
 
             Returns:
                 JSONResponse: Response containing either:
-                    - List[Message(role: str, content: str)]
+                    - The combined resume report from multiple workers (str)
                     - An error message with a 500 status code on failure
             """
-            await websocket.accept()
-            self.active_websockets["documents"][number - 1] = websocket
 
-            if not self.document_event.is_set():
-                await self.document_event.wait()
+            try:
+                if not self.post_workflow_event.is_set():
+                    await self.post_workflow_event.wait()
 
-            await websocket.send_text(
-                self.engine.user_knowledge_base.source[number - 1](deanonymize=True)
-            )
+                return JSONResponse(content={"content": self.engine.reports["resume"]})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+        @self.router.get("/cover_letter_report")
+        async def get_cover_letter_report():
+            """
+            Retrieves the cover letter report after post workflow.
+
+            Returns:
+                JSONResponse: Response containing either:
+                    - The combined cover letter report from multiple workers (str)
+                    - An error message with a 500 status code on failure
+            """
+
+            try:
+                if not self.post_workflow_event.is_set():
+                    await self.post_workflow_event.wait()
+
+                return JSONResponse(
+                    content={"content": self.engine.reports["cover_letter"]}
+                )
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=500)
 
     def register_conversation_view_routes(self):
 
@@ -171,109 +194,27 @@ class EngineRouter:
             if not self.persona_event.is_set():
                 await self.persona_event.wait()
 
-            for persona in self.personas:
-                if persona.role == persona_name:
-                    await websocket.send_json(persona.conversation.get_messages())
-                    break
-
             try:
+                # Send initial message
+                for persona in self.personas:
+                    if persona.role == persona_name:
+                        messages = persona.conversation.get_messages() or []
+                        await websocket.send_json(messages)
+                        break
+
                 while True:
                     await asyncio.sleep(0.1)
-            except Exception as e:
-                print(f"Connection closed for {persona_name}: {e}")
-            # finally:
-            #     del self.active_websockets["personas"][persona_name]
 
-    def register_function_routes(self):
-
-        @self.router.websocket("/ws/suggestions/{persona_name}/{doc_number}")
-        async def get_suggestions(
-            websocket: WebSocket, persona_name: str, doc_number: int
-        ):
-            """
-            Websocket endpoint to receive document suggestions from a specific persona.
-
-            The client sends a message to request a suggestion, and the server responds
-            with the next suggestion in the sequence.
-
-            Returns:
-                JSON objects containing Updates for DiffDocument.
-            """
-            await websocket.accept()
-            suggestion_generator = None
-            doc = self.engine.user_knowledge_base.source[doc_number - 1]
-            prompt = Prompt(
-                prompt="You are a Professional Resume Editor, meticulously utilize the information seeking conversation to provide tailored edits for the document."
-            )
-
-            try:
-                if not self.apply_function_event.is_set():
-                    await self.apply_function_event.wait()
-
-                # every persona gets own history
-                diffdoc = DiffDocument(doc())
-                while True:
-                    message = await websocket.receive_json()
-
-                    if message.get("action") == "get_suggestion":
-                        for persona in self.personas:
-                            if persona.role == persona_name:
-                                next_suggestion = post_workflow(
-                                    diffdoc,
-                                    prompt,
-                                    persona.conversation.get_messages(),
-                                )
-                                break
-                        await websocket.send_json(next_suggestion)
-
-                    elif message.get("action") == "accept_suggestion" and message.get(
-                        "suggestion"
-                    ):
-                        suggestion = message["suggestion"]
-
-                        diffdoc.apply(Updates.model_validate_json(suggestion))
-
-                        self.engine.user_knowledge_base.source[doc_number - 1] = diffdoc
-
-                        await websocket.send_json(
-                            {
-                                "action": "suggestion_accepted",
-                                "success": True,
-                                "message": "Suggestion applied successfully on the server",
-                            }
-                        )
-
-                        doc_socket = self.active_websockets["documents"].get(
-                            doc_number - 1
-                        )
-                        if doc_socket:
-                            try:
-                                await doc_socket.send_text(
-                                    self.engine.user_knowledge_base.source[
-                                        doc_number - 1
-                                    ](deanonymize=True)
-                                )
-                            except Exception as e:
-                                logger.error(f"Failed to update document view: {e}")
-
-                    await asyncio.sleep(0.1)
+            except WebSocketDisconnect:
+                print(f"Client disconnected: {persona_name}")
 
             except Exception as e:
-                print(f"Suggestion connection closed for {persona_name}: {e}")
-                logger.error(f"Suggestion connection error: {e}")
+                print(f"Error in WebSocket {persona_name}: {e}")
 
-    def register_logging_routes(self):
-        @self.router.websocket("/api/logs")
-        async def send_logs(websocket: WebSocket):
-            await websocket.accept()
-
-            try:
-                while True:
-                    message = await log_queue.get()
-                    log_message = f"{message.levelname}: {message.getMessage()}"
-                    await websocket.send_json({"log": log_message})
-            except Exception as e:
-                print(f"Websocket error: {e}")
+            finally:
+                if persona_name in self.active_websockets["personas"]:
+                    del self.active_websockets["personas"][persona_name]
+                await websocket.close()
 
     async def monitor_queue(self):
         """
@@ -318,6 +259,7 @@ class EngineRouter:
         self.knowledge_storm(self.personas)
 
     def knowledge_storm(self, personas: List[Worker]):
-        self.apply_function_event.clear()
+        self.post_workflow_event.clear()
         self.engine.parallel_conversation(personas)
-        self.apply_function_event.set()
+        self.engine.post_workflow()
+        self.post_workflow_event.set()
