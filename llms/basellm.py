@@ -1,26 +1,68 @@
-from openai import OpenAI
-from google import genai
-from google.genai import types
+import openai as oai
 from dotenv import load_dotenv
 from typing import List, Dict
 import os
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
+    retry_if_exception_type,
+)
+from transformers import AutoTokenizer
 
-load_dotenv("./.env")
+load_dotenv(".env")
 
 
-class HfBaseLLM:
+class BaseLLM:
+    def __init__(self, provider: str, system_prompt=None):
+        self.system_prompt = (
+            system_prompt if system_prompt else "You are an helpful assistant"
+        )
+
+        if provider == "huggingface":
+            base_url = "https://api-inference.huggingface.co/v1/"
+            api_key = os.getenv("HF_TOKEN", None)
+            self.default_model = "meta-llama/Llama-3.3-70B-Instruct"
+        elif provider == "togetherai":
+            base_url = "https://api.together.xyz/v1"
+            api_key = os.getenv("TOGETHER_API_KEY", None)
+            self.default_model = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
+        elif provider == "ollama":
+            base_url = "http://localhost:11434/v1"
+            api_key = "ollama"
+            self.default_model = None
+        elif provider == "openai":
+            base_url = None
+            api_key = os.getenv("OPENAI_API_KEY", None)
+            self.default_model = "gpt-4o-mini-2024-07-18"
+        elif provider == "google":
+            base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+            api_key = os.getenv("GEMINI_API_KEY", None)
+            self.default_model = "gemini-2.0-flash"
+
+        self.client = oai.OpenAI(
+            base_url=base_url,
+            api_key=api_key,
+        )
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "meta-llama/Llama-3.3-70B-Instruct"
+        )
+
+    def count_tokens(self, content):
+        token_count = len(self.tokenizer.encode(content))
+        return token_count
+
+
+class LLM(BaseLLM):
     """
     Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
     """
 
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
-        self.prompt_template = ""
-        self.client = OpenAI(
-            base_url="https://api-inference.huggingface.co/v1/",
-            api_key=os.getenv("HF_TOKEN", None),
-        )
-        self.model = "meta-llama/Llama-3.3-70B-Instruct"
+    def __init__(self, provider: str, system_prompt=None, model=None):
+        super().__init__(provider, system_prompt)
+
+        self.model = model if model else self.default_model
         self.config = {
             "model": self.model,
             "messages": None,
@@ -29,6 +71,11 @@ class HfBaseLLM:
             "max_completion_tokens": None,
         }
 
+    @retry(
+        retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
+        wait=wait_random_exponential(min=5, max=60),
+        stop=stop_after_attempt(10),
+    )
     def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
 
         self.config |= {
@@ -37,10 +84,15 @@ class HfBaseLLM:
             **kwargs,
         }
 
-        return self.client.chat.completions.create(**self.config)
+        try:
+            response = self.client.chat.completions.create(**self.config)
+            return response
+        except oai.RateLimitError as e:
+            raise
+        except oai.InternalServerError as e:
+            raise
 
-    def __call__(self, **kwargs):
-        prompt = self.prompt_template.format(**kwargs)
+    def __call__(self, prompt, **kwargs):
         message = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
@@ -48,65 +100,91 @@ class HfBaseLLM:
         return self.generate(self.model, message).choices[0].message.content
 
 
-class GeminiBaseLLM:
+class StructLLM(BaseLLM):
     """
-    Base Gemini Wrapper for gemini-1.5 flash and pro models. Uses OpenAI Client using gemini inference base url.
+    Base Gemini Wrapper for gemini-2.0 flash and pro models. Uses OpenAI Client using gemini inference base url.
     """
 
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
-        self.prompt_template = ""
-        self.client = OpenAI(
+    def __init__(self, provider: str, system_prompt=None, model=None):
+        super().__init__(provider, system_prompt)
+
+        self.model = model if model else self.default_model
+        self.config = {
+            "model": self.model,
+            "messages": None,
+            "temperature": 0,
+            "top_p": None,
+            "max_completion_tokens": None,
+        }
+
+    @retry(
+        retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
+        wait=wait_random_exponential(min=5, max=60),
+        stop=stop_after_attempt(10),
+    )
+    def generate(self, model: str, messages: List[Dict[str, str]], format, **kwargs):
+
+        self.config |= {
+            "model": model or self.model,
+            "messages": messages,
+            "response_format": format,
+            **kwargs,
+        }
+
+        try:
+            response = self.client.beta.chat.completions.parse(**self.config)
+            return response
+        except oai.RateLimitError as e:
+            raise
+        except oai.InternalServerError as e:
+            raise
+
+    def __call__(self, prompt, format, **kwargs):
+        message = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        return (
+            self.generate(self.model, message, format, **kwargs)
+            .choices[0]
+            .message.parsed
+        )
+
+
+class EmbeddingModel:
+    """
+    Base Gemini Wrapper for text-embedding-004 model. Uses OpenAI Client using gemini inference base url.
+    """
+
+    def __init__(self):
+        self.client = oai.OpenAI(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
-        self.model = "gemini-2.0-flash-exp"
-        self.large_model = "gemini-1.5-pro"
-        self.config = {
-            "model": self.model,
-            "messages": None,
-            "temperature": None,
-            "top_p": None,
-            "max_completion_tokens": None,
-        }
+        self.model = "text-embedding-004"
+        self.config = {"model": self.model, "input": None}
 
-    def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
+    @retry(
+        retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
+        wait=wait_random_exponential(min=5, max=60),
+        stop=stop_after_attempt(10),
+    )
+    def generate(self, model: str, texts: List[Dict[str, str]], **kwargs):
 
         self.config |= {
             "model": model or self.model,
-            "messages": messages,
+            "input": texts,
             **kwargs,
         }
 
-        return self.client.chat.completions.create(**self.config)
+        try:
+            response = self.client.embeddings.create(**self.config)
+            return response
+        except oai.RateLimitError as e:
+            raise
+        except oai.InternalServerError as e:
+            raise
 
-    def __call__(self, **kwargs):
-        prompt = self.prompt_template.format(**kwargs)
-        message = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": prompt},
-        ]
-        return self.generate(self.model, message).choices[0].message.content
+    def __call__(self, texts: List[str]):
 
-
-class GeminiMultiModalBaseLLM:
-    """
-    Base MultiModal Gemini Wrapper for Genai Pyton SDK. WIP.
-    """
-
-    def __init__(self, system_prompt):
-        self.system_prompt = system_prompt
-        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", None))
-        self.model = "gemini-1.5-flash-002"
-        self.large_model = "gemini-exp-1206"
-        self.config = {
-            "system_instruction": self.system_prompt,
-            "temperature": None,
-            "top_p": None,
-            "top_k": None,
-            "max_output_tokens": None,
-            "response_mime_type": "text/plain",
-        }
-
-    def generate(self):
-        raise NotImplementedError
+        return [data.embedding for data in self.generate(self.model, texts).data]

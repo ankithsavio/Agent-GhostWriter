@@ -1,4 +1,4 @@
-# Cover Letter AI Agent
+# Agent Ghost Writer
 
 ## Setup and Installation
 1. Clone the repository:
@@ -16,14 +16,15 @@
 
 3. Configure API keys in a `.env` file:
    ```env
-   HF_API_KEY=your_huggingface_api_key
-   GEMINI_API_KEY=your_gemini_api_key
+   PYTHONPATH=
+   GEMINI_API_KEY=
+   HF_TOKEN=
+   HUGGINGFACEHUB_API_TOKEN=
+   TOGETHER_API_KEY=
+   MONGO_ROOT_USERNAME=
+   MONGO_ROOT_PASSWORD=
    ```
 
-## Usage
-   Run the streamlit app:
-   ```bash
-   python -m streamlit run app/main.py --server.headless true
-   ```
+## Dataflow Diagram
 
-
+![Figure](ghost_writer_figure.png)
