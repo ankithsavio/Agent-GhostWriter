@@ -1,4 +1,4 @@
-# include:
+include:
 #   - docker-compose.tracing.yaml
 #   - docker-compose.web.yaml
 services:
