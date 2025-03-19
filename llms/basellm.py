@@ -8,9 +8,6 @@ from tenacity import (
     wait_random_exponential,
     retry_if_exception_type,
 )
-
-# from langfuse.openai import openai
-# from langfuse.decorators import observe
 from transformers import AutoTokenizer
 
 load_dotenv(".env")
@@ -74,7 +71,6 @@ class LLM(BaseLLM):
             "max_completion_tokens": None,
         }
 
-    # @observe(name="LLM_Generate")
     @retry(
         retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
         wait=wait_random_exponential(min=5, max=60),
@@ -121,7 +117,6 @@ class StructLLM(BaseLLM):
             "max_completion_tokens": None,
         }
 
-    # @observe(name="Struct_Generate")
     @retry(
         retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
         wait=wait_random_exponential(min=5, max=60),
@@ -169,7 +164,6 @@ class EmbeddingModel:
         self.model = "text-embedding-004"
         self.config = {"model": self.model, "input": None}
 
-    # @observe(name="Embedding_Generate")
     @retry(
         retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
         wait=wait_random_exponential(min=5, max=60),

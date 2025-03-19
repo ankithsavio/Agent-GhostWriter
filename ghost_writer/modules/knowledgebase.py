@@ -1,17 +1,14 @@
 import os
 import re
-from typing import Union, List, Dict, Type, TypeVar
 import pymupdf4llm as pymupdf
 from pydantic import BaseModel
-from langfuse.decorators import observe
+from typing import Union, List, Dict, Type, TypeVar
 from ghost_writer.utils.diff import DiffDocument
 from ghost_writer.utils.prompt import Prompt
-from ghost_writer.modules.search import SearXNG
-from ghost_writer.modules.search_ddg import DuckDuckGoSearch
+from ghost_writer.modules.search import GoogleWeb
 from ghost_writer.modules.vectordb import Qdrant
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from llms.basellm import LLM, StructLLM
-from langchain_experimental.data_anonymizer import PresidioReversibleAnonymizer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 T = TypeVar("T", bound=BaseModel)
@@ -24,12 +21,8 @@ class KnowledgeBaseBuilder:
         source: Union[str, List[str]],
         source_name: str,
         model: BaseModel,
-        anonymize: bool,
         research: bool,
     ):
-        self.anonymizer = PresidioReversibleAnonymizer(
-            analyzed_fields=["PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "URL"]
-        )
         self.struct_llm = StructLLM(provider="google")
         self.llm = LLM(provider="togetherai")
         self.model = model
@@ -55,39 +48,26 @@ class KnowledgeBaseBuilder:
                 "",
             ],
         )
-        self.source = self.load_files(source, anonymize=anonymize)
+        self.source = self.load_files(source)
         if research:
-            self.search = SearXNG()
-            # self.search = DuckDuckGoSearch()
+            self.search = GoogleWeb()
 
-    def load_files(self, items: Union[str, List[str]], anonymize: bool = False):
+    def load_files(self, items: Union[str, List[str]]):
         """
         Load and process multiple files or text items into DiffDocument objects.
         Args:
             items (Union[str, List[str]]): File path(s) or text content to load.
-            anonymize (bool, optional): Whether to anonymize the content. Defaults to True.
 
         Returns:
             List[DiffDocument]: List of processed DiffDocument objects.
         """
 
-        def post_process(doc):
-            if anonymize:
-                return self.anonymizer.anonymize(doc)
-            else:
-                return doc
-
         def load_file(path):
             md = pymupdf.to_markdown(path)
-            # hacky fix
-            clean_md = re.sub(r"^#\s*", "", md)
-            anonymized_md = post_process(clean_md)
-            md = f"# {anonymized_md}"
-
-            return DiffDocument(md, self.anonymizer)
+            return DiffDocument(md)
 
         def load_txt(doc):
-            return DiffDocument(post_process(doc), self.anonymizer)
+            return DiffDocument(doc)
 
         if isinstance(items, str):
             if os.path.isfile(items):
@@ -117,7 +97,6 @@ class KnowledgeBaseBuilder:
         )
         return response
 
-    @observe()
     def query_vectordb(self, queries: List[str]):
         """
         Queries the vector database with a list of queries and returns matching documents.
@@ -196,7 +175,6 @@ class KnowledgeBaseBuilder:
             summarized_results.append({"summary": response} | result)
         return summarized_results
 
-    @observe()
     def create_knowledge_document(self, gen_prompt: Prompt):
         """
         Create a knowledge document using an LLM based on the provided prompt and prepare for RAG.
@@ -227,7 +205,6 @@ class KnowledgeBaseBuilder:
         self.split_and_upload_document(self.knowledge_document)
         return self.knowledge_document
 
-    @observe()
     def create_knowledge_document_with_research(
         self,
         search_model: Type[T],
@@ -249,38 +226,21 @@ class KnowledgeBaseBuilder:
                 "Research not enabled during the initialization of the knowledge base."
             )
 
-        # search_queries = self.struct_llm(
-        #     prompt=str(search_prompt),
-        #     format=search_model,
-        # )
+        search_queries = self.struct_llm(
+            prompt=str(search_prompt),
+            format=search_model,
+        )
 
-        ### <-- Till we finish everything but web research --> ###
-
-        # result_list = [
-        #     {
-        #         "topic": topic[0],
-        #         "queries": topic[1].queries,
-        #         "results": self.summarize_search_results(
-        #             self.search.run(query=topic[1].queries)
-        #         ),
-        #     }
-        #     for topic in search_queries
-        # ]
-
-        ### <-- Till we finish everything but web research --> ###
-        import json
-
-        result_file = "tests/search_dumps.json"
-
-        # with open(result_file, "w") as file:
-        #     json.dump(result_list, file, indent=4)
-
-        ### <-- Till we finish everything but web research --> ###
-
-        with open(result_file, "r") as file:
-            result_list = json.load(file)
-
-        ### <-- Till we finish everything but web research --> ###
+        result_list = [
+            {
+                "topic": topic[0],
+                "queries": topic[1].queries,
+                "results": self.summarize_search_results(
+                    self.search.run(query=topic[1].queries)
+                ),
+            }
+            for topic in search_queries
+        ]
 
         self.knowledge_document = ""
 

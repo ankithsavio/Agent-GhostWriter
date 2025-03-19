@@ -262,6 +262,7 @@ class SearXNGWeb(BaseWebSearch):
         """
         Initialize the search module.
         """
+        super().__init__()
         self.instance = "http://localhost:8888/search"
         self.params = {
             "format": "json",
@@ -313,6 +314,7 @@ class GoogleWeb(BaseWebSearch):
         """
         Initialize the Google search module.
         """
+        super().__init__()
         self.instance = "https://www.googleapis.com/customsearch/v1?"
         self.params = {
             "key": os.getenv("GOOGLE_WEB_API_KEY"),
@@ -360,6 +362,7 @@ class DDGWeb(BaseWebSearch):
         """
         Initialize the DuckDuckGo search module.
         """
+        super().__init__()
         self.client = DuckDuckGoSearchResults(
             output_format="list", keys_to_include=["title", "link"]
         )

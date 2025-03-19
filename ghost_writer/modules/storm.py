@@ -1,6 +1,5 @@
 import queue
 from pydantic import BaseModel
-from langfuse.decorators import observe
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.utils.persona import Personas
 from ghost_writer.utils.workers import Worker, Message
@@ -14,7 +13,6 @@ class Storm:
         self.struct_llm = StructLLM(provider="google")
         self.queue = queue.Queue()
 
-    @observe()
     def get_personas(self, prompt: Prompt):
         """
         Generates a list of worker personas based on the given prompt.
@@ -32,7 +30,6 @@ class Storm:
         )
         return [Worker(**persona.model_dump()) for persona in personas_result.editors]
 
-    @observe()
     def get_questions(self, worker: Worker, prompt: Prompt):
         """
         Generates questions based on the given worker and prompt.
@@ -69,7 +66,6 @@ class Storm:
         self.push_update(worker)
         return message
 
-    @observe()
     def get_search_queries(self, worker: Worker, model: BaseModel, prompt: Prompt):
         """
         Generate search queries for a vector database based on a worker's conversation and prompt.
@@ -95,7 +91,6 @@ class Storm:
         )
         return response
 
-    @observe()
     def get_answers(self, worker: Worker, prompt: Prompt):
         """
         Gets answers from the language model (LLM) based on the provided prompt and updates worker's conversation.
