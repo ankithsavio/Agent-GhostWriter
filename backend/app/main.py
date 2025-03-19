@@ -1,10 +1,29 @@
+import os
+import uvicorn
 from fastapi import FastAPI
 from backend.app.router import EngineRouter
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+from contextlib import asynccontextmanager
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Remove files before shutdown
+    """
+    yield
+    try:
+        items = os.listdir("backend/uploads")
+        for item in items:
+            item_path = os.path.join("backend/uploads", item)
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+
+    except FileNotFoundError:
+        print(f"Error uploads dir not found")
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(EngineRouter().router)
 
