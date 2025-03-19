@@ -3,7 +3,6 @@ import re
 import pymupdf4llm as pymupdf
 from pydantic import BaseModel
 from typing import Union, List, Dict, Type, TypeVar
-from ghost_writer.utils.diff import DiffDocument
 from ghost_writer.utils.prompt import Prompt
 from ghost_writer.modules.search import GoogleWeb
 from ghost_writer.modules.vectordb import Qdrant
@@ -54,20 +53,20 @@ class KnowledgeBaseBuilder:
 
     def load_files(self, items: Union[str, List[str]]):
         """
-        Load and process multiple files or text items into DiffDocument objects.
+        Load and process multiple files or text items into strings.
         Args:
             items (Union[str, List[str]]): File path(s) or text content to load.
 
         Returns:
-            List[DiffDocument]: List of processed DiffDocument objects.
+            List[str]: List of processed docs in string.
         """
 
         def load_file(path):
             md = pymupdf.to_markdown(path)
-            return DiffDocument(md)
+            return md
 
         def load_txt(doc):
-            return DiffDocument(doc)
+            return doc
 
         if isinstance(items, str):
             if os.path.isfile(items):

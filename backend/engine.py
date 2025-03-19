@@ -65,7 +65,7 @@ class WriterEngine:
         self.user_report = []
         for doc in docs:
             result = self.user_knowledge_base.structured_document(
-                prompt=Prompt(prompt=PDF_PROMPT, doc=doc())
+                prompt=Prompt(prompt=PDF_PROMPT, doc=doc)
             )
             self.user_report.append(result)
         logger.info("User Report Loaded")
@@ -74,7 +74,7 @@ class WriterEngine:
         self.company_report = []
         for doc in docs:
             result = self.company_knowledge_base.structured_document(
-                prompt=Prompt(prompt=JD_PROMPT, doc=doc())
+                prompt=Prompt(prompt=JD_PROMPT, doc=doc)
             )
             self.company_report.append(result)
 
@@ -318,7 +318,7 @@ class WriterEngine:
                 doc = "resume"
                 prompt = Prompt(
                     prompt="You are an expert resume editor and you are provided with an information_seeking_conversation and user_resume. You have to provide a report to update user_resume using the provided format",
-                    user_resume=self.user_knowledge_base.source[0](),
+                    user_resume=self.user_knowledge_base.source[0],
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
                     instructions="""1. Strictly follow the format provided. Including sections and their instructions.
@@ -332,7 +332,7 @@ class WriterEngine:
                 doc = "cover letter"
                 prompt = Prompt(
                     prompt="You are an expert cover letter editor and you are provided with an information_seeking_conversation and user_cover_letter. You have to provide a report to update user_cover_letter using the provided format",
-                    user_cover_letter=self.user_knowledge_base.source[1](),
+                    user_cover_letter=self.user_knowledge_base.source[1],
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
                     instructions="""1. Strictly follow the format provided. Including sections and their instructions.
