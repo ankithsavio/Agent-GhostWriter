@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 
 load_dotenv(".env")
-
+import re
 from typing import List, Dict
 from backend.models.user import UserReport
 from backend.models.company import CompanyReport
@@ -12,7 +12,6 @@ from ghost_writer.utils.logger import logger
 from ghost_writer.modules.vectordb import Qdrant
 from ghost_writer.modules.storm import Storm
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
-
 from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from threading import Lock
@@ -260,6 +259,9 @@ class WriterEngine:
         return conversations
 
     def post_workflow(self):
+        """
+        Create reports for editing the users documents.
+        """
 
         from llms.basellm import LLM
 
@@ -271,6 +273,9 @@ class WriterEngine:
         lock = Lock()
 
         def create_reports(worker: Worker):
+            """
+            Create reports using a static template
+            """
             format = """
             # Targeted Keywords & Skills:
 
@@ -351,6 +356,9 @@ class WriterEngine:
             return
 
         def combine_report(workers: List[Worker], doc_report: Dict[str, str]):
+            """
+            Combine reports from different personas into a single report.
+            """
             report_template = """
             ###
             Source: {worker}
@@ -384,6 +392,14 @@ class WriterEngine:
             response = reasoning_model(str(prompt))
             return response
 
+        def process_content(content):
+            """
+            Remove markdown code block delimiters (triple backticks) from text. (for gemini)
+            """
+            if "```" in content:
+                content = re.sub(r"```(?:\w*\n?|\n?)", "", content)
+            return content
+
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for worker in self.personas:
@@ -403,4 +419,4 @@ class WriterEngine:
             for future_doc in futures:
                 future, doc = future_doc.popitem()
                 report = future.result()
-                self.reports[doc] = report
+                self.reports[doc] = process_content(report)
