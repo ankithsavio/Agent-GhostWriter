@@ -1,0 +1,26 @@
+[project]
+name = "agent-ghostwriter"
+version = "0.1.0"
+description = "Orchestrate knowledge storm on your documents for CV writing"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "crawl4ai>=0.5.0.post4",
+    "fastapi>=0.115.11",
+    "langchain-experimental>=0.3.4",
+    "openai>=1.66.5",
+    "pip>=25.0.1",
+    "playwright>=1.51.0",
+    "pymongo>=4.11.3",
+    "pymupdf4llm>=0.0.17",
+    "python-dotenv>=1.0.1",
+    "python-multipart>=0.0.20",
+    "qdrant-client>=1.13.3",
+    "spacy>=3.8.4",
+    "tenacity>=9.0.0",
+    "trafilatura>=2.0.0",
+    "transformers>=4.49.0",
+    "uvicorn>=0.34.0",
+    "websockets>=15.0.1",
+    "wsproto>=1.2.0",
+]

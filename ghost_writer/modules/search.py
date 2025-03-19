@@ -121,7 +121,7 @@ class BaseWebSearch:
                     {
                         "title": web_result.get("title", ""),
                         "url": web_result.get("url", ""),
-                        "content": self.clean_html(result),
+                        "content": self.clean_html(result) or "No Results",
                     }
                     for web_result, result in zip(web_results, results)
                     if result
@@ -217,7 +217,7 @@ class BaseWebSearch:
         """
 
         results = self.get_urls(query)
-        content_list = self.get_web_content(results)
+        content_list: List = self.get_web_content(results)
         if not content_list:
             return [{"query": query, "result": self.format_payloads([])}]
         self.vectordb.upsert_documents(

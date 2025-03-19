@@ -19,7 +19,7 @@ class ConversationHistory:
     """
 
     def __init__(self, name: str):
-        url = f"mongodb://{os.getenv('MONGO_ROOT_USERNAME', 'root')}:{os.getenv('MONGO_ROOT_PASSWORD', 'example')}@localhost:27018/?authSource=admin"
+        url = os.getenv("MONGO_URL")
         self.client = MongoClient(url)
         self.session_id = str(uuid.uuid4())  # entity unique id
         self.db = self.client["Ghost_Writer"]

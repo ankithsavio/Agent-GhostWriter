@@ -1,3 +1,4 @@
+import os
 import spacy
 from typing import List, Union, Dict
 from llms.basellm import EmbeddingModel
@@ -14,8 +15,7 @@ from qdrant_client.http.models import (
 
 class Qdrant:
     def __init__(self):
-
-        self.client = QdrantClient(url="http://localhost:6333")
+        self.client = QdrantClient(url=os.getenv("QDRANT_URL"))
         self.embedding_model = EmbeddingModel()
         self.nlp = spacy.load("en_core_web_sm")
 

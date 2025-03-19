@@ -118,3 +118,36 @@ The queries should progressively explore the company, starting broadly and becom
 
 Given the Company Report, generate a JSON output following the structure. Focus on queries that yield valuable information for understanding the company and writing a highly targeted and impactful cover letter.
 """
+
+REPORT_TEMPLATE = """# Targeted Keywords & Skills:
+
+List 2-3 most impactful keywords to add or emphasize in the {doc}, based on conversation about company/role. E.g., "Cloud Computing", "Agile Methodologies", "Customer Success Metrics"
+
+Mention 1-2 specific skills to highlight more prominently based on company needs. E.g., "Emphasize your Python skills in the Skills and Projects sections", "Showcase experience with Salesforce CRM in your Experience bullets."
+
+Note any skills to de-emphasize if they are less relevant to the target company, but only if clearly discussed. E.g., "Reduce focus on legacy system experience, shift to modern tech."
+
+# Company & Role Alignment:
+
+Identify 1-2 specific aspects of the company/role mentioned in the conversation that should be directly addressed in the {doc}. E.g., "Highlight your experience in the FinTech industry to align with their sector focus.", "Showcase projects demonstrating innovation as it's a company value."
+
+Suggest 1-2 sections or bullet points where this alignment can be explicitly shown. E.g., "In your Summary, mention your interest in contributing to a 'mission-driven company' (as discussed).", "In your 'Project X' description, link it to solving a problem similar to those in the [Company's Industry]."
+
+# Experience Section - Impact & Quantify:
+
+Point out 1-2 experience bullet points that could be strengthened by quantification. E.g., "Quantify the 'improved efficiency' in your role at Company Y - use numbers or percentages.", "For 'managed projects', specify the team size and budget if possible."
+
+Suggest 1-2 action verbs to use to make experience descriptions more impactful and results-oriented. E.g., "Replace 'Responsible for' with stronger verbs like 'Spearheaded', 'Led', or 'Achieved'.", "Use verbs that imply impact, like 'Reduced', 'Increased', 'Optimized'."
+
+# Summary/Profile Enhancement:
+
+Suggest 1-2 adjustments to the summary to make it more targeted and compelling for the company. E.g., "Tailor your summary to directly mention your interest in [Company's Mission/Industry].", "Add a sentence highlighting your key value proposition in the first line."
+
+Recommend if the summary should be more specific or more general based on the conversation context and target company type. E.g., "Make the summary more specific to the 'Data Science' role.", "Keep the summary slightly broader to accommodate various roles at a large corporation."
+
+# Formatting & Clarity:
+
+If formatting issues were discussed or are apparent, give 1-2 brief formatting tips. E.g., "Ensure consistent date formatting throughout.", "Break up large paragraphs into bullet points for readability."
+
+If clarity issues were discussed, suggest 1-2 clarity improvements. E.g., "Simplify technical jargon in the 'Skills' section for broader readability.", "Ensure each bullet point clearly starts with your action and then the result."
+"""
