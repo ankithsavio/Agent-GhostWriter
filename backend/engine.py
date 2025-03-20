@@ -1,13 +1,10 @@
-from dotenv import load_dotenv
-
-load_dotenv(".env")
 import re
 from typing import List, Dict
 from backend.models.user import UserReport
 from backend.models.company import CompanyReport
 from backend.models.search import SearchQueries, RAGQueries, Entity
 from ghost_writer.utils.prompt import Prompt
-from ghost_writer.utils.workers import Worker, Message
+from ghost_writer.utils.workers import Worker
 from ghost_writer.utils.logger import logger
 from ghost_writer.modules.vectordb import Qdrant
 from ghost_writer.modules.storm import Storm
@@ -15,6 +12,9 @@ from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT, REPORT_TEMPLATE
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from threading import Lock
+from dotenv import load_dotenv
+
+load_dotenv(".env")
 
 
 class WriterEngine:
@@ -123,7 +123,7 @@ class WriterEngine:
         Query across multiple collections in Qdrant
         """
         collection = entity.value.lower()
-        if not collection in self.vectordb.get_collections():
+        if collection not in self.vectordb.get_collections():
             raise ValueError("Invalid collections name")
 
         result_list = []

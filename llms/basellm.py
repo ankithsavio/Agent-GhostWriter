@@ -87,9 +87,9 @@ class LLM(BaseLLM):
         try:
             response = self.client.chat.completions.create(**self.config)
             return response
-        except oai.RateLimitError as e:
+        except oai.RateLimitError:
             raise
-        except oai.InternalServerError as e:
+        except oai.InternalServerError:
             raise
 
     def __call__(self, prompt, **kwargs):
@@ -134,9 +134,9 @@ class StructLLM(BaseLLM):
         try:
             response = self.client.beta.chat.completions.parse(**self.config)
             return response
-        except oai.RateLimitError as e:
+        except oai.RateLimitError:
             raise
-        except oai.InternalServerError as e:
+        except oai.InternalServerError:
             raise
 
     def __call__(self, prompt, format, **kwargs):
@@ -180,9 +180,9 @@ class EmbeddingModel:
         try:
             response = self.client.embeddings.create(**self.config)
             return response
-        except oai.RateLimitError as e:
+        except oai.RateLimitError:
             raise
-        except oai.InternalServerError as e:
+        except oai.InternalServerError:
             raise
 
     def __call__(self, texts: List[str]):

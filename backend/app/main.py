@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
                 os.remove(item_path)
 
     except FileNotFoundError:
-        print(f"Error uploads dir not found")
+        print("Error uploads dir not found")
 
 
 app = FastAPI(lifespan=lifespan)

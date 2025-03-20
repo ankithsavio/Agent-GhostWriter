@@ -1,5 +1,4 @@
 import os
-import re
 import pymupdf4llm as pymupdf
 from pydantic import BaseModel
 from typing import Union, List, Dict, Type, TypeVar
