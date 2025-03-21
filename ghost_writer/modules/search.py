@@ -1,4 +1,5 @@
 import os
+import yaml
 import time
 import requests
 import asyncio
@@ -12,16 +13,18 @@ from llms.basellm import LLM
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
+provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
+
 
 class BaseWebSearch:
-    def __init__(self):
+    def __init__(self, webpage_chunk_size, webpage_chunk_overlap):
         """
         Initialize the search module.
         """
-        self.chunk_size = 2000
+        self.chunk_size = webpage_chunk_size
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
-            chunk_overlap=0,
+            chunk_overlap=webpage_chunk_overlap,
             length_function=len,
             is_separator_regex=False,
             separators=[
@@ -43,7 +46,10 @@ class BaseWebSearch:
         self.vectordb = Qdrant()
         self.vectordb.create_collection(self.collection_name)
 
-        self.llm = LLM(provider="togetherai")
+        self.llm = LLM(
+            provider=provider_config["llm"]["provider"],
+            model=provider_config["llm"]["model"],
+        )
 
         self.scraped_urls = []
         self.excluded_urls = ["linkedin.com"]
@@ -206,7 +212,7 @@ class BaseWebSearch:
         ]
         return list_of_payload
 
-    def run(self, query: str):
+    def run(self, query: str, limit: int = None):
         """
         Executes a web search, retrieves content, and performs vector database operations.
         Args:
@@ -216,7 +222,7 @@ class BaseWebSearch:
             list: A list of relevant document matches from the vector database query
         """
 
-        results = self.get_urls(query)
+        results = self.get_urls(query, limit=limit)
         content_list: List = self.get_web_content(results)
         if not content_list:
             return [{"query": query, "result": self.format_payloads([])}]
@@ -228,7 +234,7 @@ class BaseWebSearch:
         )
         return [{"query": query, "result": self.format_payloads(result)}]
 
-    def run_many(self, queries: List[str]):
+    def run_many(self, queries: List[str], limit: int = None):
         """
         Process multiple search queries, fetch web content, and store in vector database.
         See run method.
@@ -236,7 +242,7 @@ class BaseWebSearch:
 
         url_list = []
         for query in queries:
-            result = self.get_urls(query)
+            result = self.get_urls(query, limit=limit)
             url_list.extend(result)
         content_list = self.get_web_content(url_list)
         if not content_list:
@@ -258,11 +264,11 @@ class BaseWebSearch:
 
 
 class SearXNGWeb(BaseWebSearch):
-    def __init__(self):
+    def __init__(self, webpage_chunk_size, webpage_chunk_overlap):
         """
         Initialize the search module.
         """
-        super().__init__()
+        super().__init__(webpage_chunk_size, webpage_chunk_overlap)
         self.instance = "http://localhost:8888/search"
         self.params = {
             "format": "json",
@@ -310,11 +316,11 @@ class SearXNGWeb(BaseWebSearch):
 
 
 class GoogleWeb(BaseWebSearch):
-    def __init__(self):
+    def __init__(self, webpage_chunk_size, webpage_chunk_overlap):
         """
         Initialize the Google search module.
         """
-        super().__init__()
+        super().__init__(webpage_chunk_size, webpage_chunk_overlap)
         self.instance = "https://www.googleapis.com/customsearch/v1?"
         self.params = {
             "key": os.getenv("GOOGLE_WEB_API_KEY"),
@@ -358,11 +364,11 @@ class GoogleWeb(BaseWebSearch):
 
 
 class DDGWeb(BaseWebSearch):
-    def __init__(self):
+    def __init__(self, webpage_chunk_size, webpage_chunk_overlap):
         """
         Initialize the DuckDuckGo search module.
         """
-        super().__init__()
+        super().__init__(webpage_chunk_size, webpage_chunk_overlap)
         self.client = DuckDuckGoSearchResults(
             output_format="list", keys_to_include=["title", "link"]
         )

@@ -1,5 +1,8 @@
+import yaml
 from typing import List
 from llms.basellm import LLM
+
+provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
 
 class Prompt:
@@ -11,7 +14,10 @@ class Prompt:
         **kwargs,
     ):
         self.prompt = prompt
-        self.llm = LLM(provider="togetherai")
+        self.llm = LLM(
+            provider=provider_config["llm"]["provider"],
+            model=provider_config["llm"]["model"],
+        )
         self.dynamic_attr = {}
         self.summarize = watch or []
         self.token_limit = token_limit

@@ -60,5 +60,14 @@ class ConversationHistory:
             for message in messages
         ]
 
+    def get_messages_as_str(self):
+        """
+        Retreive the entire conversation history of the entity as a formatted string.
+        """
+        return "\n".join(
+            f"role: {item['role']}\nmessage: {item['content']}"
+            for item in self.get_messages()
+        )
+
     def clear(self):
         self.collection.delete_many({"session_id": self.session_id})

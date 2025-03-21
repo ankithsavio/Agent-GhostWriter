@@ -1,4 +1,5 @@
 import os
+import yaml
 import pymupdf4llm as pymupdf
 from pydantic import BaseModel
 from typing import Union, List, Dict, Type, TypeVar
@@ -11,6 +12,8 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 T = TypeVar("T", bound=BaseModel)
 
+provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
+
 
 class KnowledgeBaseBuilder:
 
@@ -20,16 +23,28 @@ class KnowledgeBaseBuilder:
         source_name: str,
         model: BaseModel,
         research: bool,
+        retrieval_limit: int,
+        portfolio_chunk_size: int,
+        portfolio_chunk_overlap: int,
+        webpage_chunk_size: int = None,
+        webpage_chunk_overlap: int = None,
     ):
-        self.struct_llm = StructLLM(provider="google")
-        self.llm = LLM(provider="togetherai")
+        self.struct_llm = StructLLM(
+            provider=provider_config["structllm"]["provider"],
+            model=provider_config["structllm"]["model"],
+        )
+        self.llm = LLM(
+            provider=provider_config["llm"]["provider"],
+            model=provider_config["llm"]["model"],
+        )
         self.model = model
         self.vectordb = Qdrant()
         self.collection_name = source_name
         self.vectordb.create_collection(self.collection_name)
+        self.retrieval_limit = retrieval_limit
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=0,
+            chunk_size=portfolio_chunk_size,
+            chunk_overlap=portfolio_chunk_overlap,
             length_function=len,
             is_separator_regex=False,
             separators=[
@@ -48,7 +63,7 @@ class KnowledgeBaseBuilder:
         )
         self.source = self.load_files(source)
         if research:
-            self.search = GoogleWeb()
+            self.search = GoogleWeb(webpage_chunk_size, webpage_chunk_overlap)
 
     def load_files(self, items: Union[str, List[str]]):
         """
@@ -110,7 +125,7 @@ class KnowledgeBaseBuilder:
         result_list = []
         for query in queries:
             results = self.vectordb.query_documents(
-                self.collection_name, query, limit=2
+                self.collection_name, query, limit=self.retrieval_limit
             )
             result_list.append(
                 {
@@ -207,6 +222,7 @@ class KnowledgeBaseBuilder:
         self,
         search_model: Type[T],
         search_prompt: Prompt,
+        search_limit: int,
         gen_prompt: Prompt,
     ) -> T:
         """
@@ -234,7 +250,7 @@ class KnowledgeBaseBuilder:
                 "topic": topic[0],
                 "queries": topic[1].queries,
                 "results": self.summarize_search_results(
-                    self.search.run(query=topic[1].queries)
+                    self.search.run(query=topic[1].queries, limit=search_limit)
                 ),
             }
             for topic in search_queries

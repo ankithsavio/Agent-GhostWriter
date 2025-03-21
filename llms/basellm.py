@@ -1,3 +1,4 @@
+import yaml
 import openai as oai
 from dotenv import load_dotenv
 from typing import List, Dict
@@ -11,6 +12,8 @@ from tenacity import (
 from transformers import AutoTokenizer
 
 load_dotenv(".env")
+
+provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
 
 class BaseLLM:
@@ -30,7 +33,7 @@ class BaseLLM:
         elif provider == "ollama":
             base_url = "http://localhost:11434/v1"
             api_key = "ollama"
-            self.default_model = None
+            self.default_model = provider_config["ollama"]["model"]
         elif provider == "openai":
             base_url = None
             api_key = os.getenv("OPENAI_API_KEY", None)

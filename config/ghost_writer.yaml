@@ -1,0 +1,17 @@
+engine:
+  simulation:
+    iterations: 5
+
+knowledge_builder:
+  qdrant:
+    query:
+      limit: 5
+  search:
+    url:
+      limit: 3
+    webpage: 
+      chunk_size: 2000
+      chunk_overlap: 0
+  portfolio:
+    chunk_size: 500
+    chunk_overlap: 0

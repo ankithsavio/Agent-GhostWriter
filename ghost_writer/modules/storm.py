@@ -1,3 +1,4 @@
+import yaml
 import queue
 from pydantic import BaseModel
 from ghost_writer.utils.prompt import Prompt
@@ -5,12 +6,20 @@ from ghost_writer.utils.persona import Personas
 from ghost_writer.utils.workers import Worker, Message
 from llms.basellm import LLM, StructLLM
 
+provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
+
 
 class Storm:
 
     def __init__(self):
-        self.llm = LLM(provider="togetherai")
-        self.struct_llm = StructLLM(provider="google")
+        self.llm = LLM(
+            provider=provider_config["llm"]["provider"],
+            model=provider_config["llm"]["model"],
+        )
+        self.struct_llm = StructLLM(
+            provider=provider_config["structllm"]["provider"],
+            model=provider_config["structllm"]["model"],
+        )
         self.queue = queue.Queue()
 
     def get_personas(self, prompt: Prompt):
@@ -50,12 +59,7 @@ class Storm:
                         role: {worker.persona} 
                         description: {worker.description} 
                         """,
-                    conversation_history="\n".join(
-                        [
-                            f"\nrole : {message['role']}\ncontent: {message['content']}"
-                            for message in worker.conversation.get_messages()
-                        ]
-                    ),
+                    conversation_history=worker.conversation.get_messages_as_str(),
                     watch=["conversation_history"],
                     token_limit=8096,
                 )

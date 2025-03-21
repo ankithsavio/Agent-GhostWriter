@@ -1,0 +1,11 @@
+llm: 
+  model: ~
+  provider: "togetherai"
+structllm: 
+  model: ~
+  provider: "google"
+ollama:
+  model: ~
+reasoning:
+  model: "gemini-2.0-flash-thinking-exp-01-21"
+  provider: "google"

@@ -13,8 +13,16 @@ from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT, REPORT_TE
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from threading import Lock
 from dotenv import load_dotenv
+import yaml
 
 load_dotenv(".env")
+config = yaml.safe_load(open("config/ghost_writer.yaml", "r"))
+engine_config = config["engine"]
+qdrant_config = config["knowledge_builder"]["qdrant"]
+search_config = config["knowledge_builder"]["search"]
+porftfolio_config = config["knowledge_builder"]["portfolio"]
+
+provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
 
 class WriterEngine:
@@ -39,6 +47,11 @@ class WriterEngine:
             source_name=self.company_collection_name,
             model=CompanyReport,
             research=True,
+            retrieval_limit=qdrant_config["query"]["limit"],
+            portfolio_chunk_size=porftfolio_config["chunk_size"],
+            portfolio_chunk_overlap=porftfolio_config["chunk_overlap"],
+            webpage_chunk_size=search_config["webpage"]["chunk_size"],
+            webpage_chunk_overlap=search_config["webpage"]["chunk_overlap"],
         )
         logger.info("Company Knowledge Base Created")
 
@@ -53,6 +66,9 @@ class WriterEngine:
             source_name=self.user_collection_name,
             model=UserReport,
             research=False,
+            retrieval_limit=qdrant_config["query"]["limit"],
+            portfolio_chunk_size=porftfolio_config["chunk_size"],
+            portfolio_chunk_overlap=porftfolio_config["chunk_overlap"],
         )
         logger.info("User Knowledge Base Created")
 
@@ -114,6 +130,7 @@ class WriterEngine:
                 search_model=SearchQueries,
                 search_prompt=research_prompt,
                 gen_prompt=portfolio_prompt,
+                search_limit=search_config["url"]["limit"],
             )
         )
         logger.info("Company Portfolio Created")
@@ -128,7 +145,9 @@ class WriterEngine:
 
         result_list = []
         for query in queries:
-            results = self.vectordb.query_documents(collection, query, limit=2)
+            results = self.vectordb.query_documents(
+                collection, query, limit=qdrant_config["query"]["limit"]
+            )
             result_list.append(
                 {
                     "query": query,
@@ -220,7 +239,7 @@ class WriterEngine:
 
         """
         logger.info("Initiating conversation simulation")
-        iterations = 3  # 10
+        iterations = engine_config["simulation"]["iterations"]
         for _ in range(iterations):
             message = self.workflow.get_questions(worker, self.question_prompt)
             if "thank you so much for your help" in message.content.lower():
@@ -266,7 +285,8 @@ class WriterEngine:
         from llms.basellm import LLM
 
         reasoning_model = LLM(
-            provider="google", model="gemini-2.0-flash-thinking-exp-01-21"
+            provider=provider_config["reasoning"]["provider"],
+            model=provider_config["reasoning"]["model"],
         )
 
         self.reports = {"resume": {}, "cover_letter": {}}
@@ -277,10 +297,7 @@ class WriterEngine:
             Create reports using a static template
             """
             format = REPORT_TEMPLATE
-            formatted_conv = "\n".join(
-                f"role: {item['role']}\nmessage: {item['content']}"
-                for item in worker.conversation.get_messages()
-            )
+            formatted_conv = worker.conversation.get_messages_as_str()
 
             def create_resume_report():
                 doc = "resume"
