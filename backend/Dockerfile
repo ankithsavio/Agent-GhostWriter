@@ -16,6 +16,7 @@ RUN uv run playwright install --with-deps chromium \
     && chmod -Rf 777 $PLAYWRIGHT_BROWSERS_PATH
 
 COPY ./backend /app/backend
+COPY ./config /app/config
 COPY ./ghost_writer /app/ghost_writer
 COPY ./llms /app/llms
 

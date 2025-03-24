@@ -1,4 +1,4 @@
-from llms.conversation import ConversationHistory, Message
+from llms.conversation import ConversationHistory
 
 
 class Worker:

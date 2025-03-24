@@ -1,19 +1,21 @@
 import re
-from typing import List, Dict
-from backend.models.user import UserReport
-from backend.models.company import CompanyReport
-from backend.models.search import SearchQueries, RAGQueries, Entity
-from ghost_writer.utils.prompt import Prompt
-from ghost_writer.utils.workers import Worker
-from ghost_writer.utils.logger import logger
-from ghost_writer.modules.vectordb import Qdrant
-from ghost_writer.modules.storm import Storm
-from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
-from backend.utils.prompts import PDF_PROMPT, JD_PROMPT, QUERY_PROMPT, REPORT_TEMPLATE
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from threading import Lock
-from dotenv import load_dotenv
+from typing import Dict, List
+
 import yaml
+from dotenv import load_dotenv
+
+from backend.models.company import CompanyReport
+from backend.models.search import Entity, RAGQueries, SearchQueries
+from backend.models.user import UserReport
+from backend.utils.prompts import JD_PROMPT, PDF_PROMPT, QUERY_PROMPT, REPORT_TEMPLATE
+from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
+from ghost_writer.modules.storm import Storm
+from ghost_writer.modules.vectordb import Qdrant
+from ghost_writer.utils.logger import logger
+from ghost_writer.utils.prompt import Prompt
+from ghost_writer.utils.workers import Worker
 
 load_dotenv(".env")
 config = yaml.safe_load(open("config/ghost_writer.yaml", "r"))
@@ -151,7 +153,11 @@ class WriterEngine:
             result_list.append(
                 {
                     "query": query,
-                    "result": [result.payload["doc"]["text"] for result in results],
+                    "result": [
+                        result.payload["doc"]["text"]
+                        for result in results
+                        if result.payload
+                    ],
                 }
             )
 
@@ -289,7 +295,8 @@ class WriterEngine:
             model=provider_config["reasoning"]["model"],
         )
 
-        self.reports = {"resume": {}, "cover_letter": {}}
+        self.reports: Dict[str, Dict[str, str]] = {"resume": {}, "cover_letter": {}}
+        self.final_reports: Dict[str, str] = {"resume": "", "cover_letter": ""}
         lock = Lock()
 
         def create_reports(worker: Worker):
@@ -377,7 +384,7 @@ class WriterEngine:
             response = reasoning_model(str(prompt))
             return response
 
-        def process_content(content):
+        def process_content(content) -> str:
             """
             Remove markdown code block delimiters (triple backticks) from text. (for gemini)
             """
@@ -404,4 +411,4 @@ class WriterEngine:
             for future_doc in futures:
                 future, doc = future_doc.popitem()
                 report = future.result()
-                self.reports[doc] = process_content(report)
+                self.final_reports[doc] = process_content(report)

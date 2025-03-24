@@ -1,9 +1,10 @@
 import os
 import uuid
 from typing import List
-from pymongo import MongoClient
-from pydantic import BaseModel
+
 from dotenv import load_dotenv
+from pydantic import BaseModel
+from pymongo import MongoClient
 
 load_dotenv(".env")
 
@@ -19,11 +20,10 @@ class ConversationHistory:
     """
 
     def __init__(self, name: str):
-        url = os.getenv("MONGO_URL")
-        self.client = MongoClient(url)
+        uri = os.getenv("MONGO_URL")
+        self.client = MongoClient(host=uri)
         self.session_id = str(uuid.uuid4())  # entity unique id
-        self.db = self.client["Ghost_Writer"]
-        self.collection = self.db[name]
+        self.collection = self.client["Ghost_Writer"][name]
         self.collection.create_index("session_id")
 
     def add_message(self, message: Message):

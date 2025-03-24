@@ -1,13 +1,17 @@
-import yaml
-import openai as oai
-from dotenv import load_dotenv
-from typing import List, Dict
 import os
+from typing import Any, Dict, List, Type, TypeVar, Union
+
+import openai as oai
+import yaml
+from dotenv import load_dotenv
+from openai.types import CreateEmbeddingResponse
+from openai.types.chat import ChatCompletion, ParsedChatCompletion
+from pydantic import BaseModel
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
-    retry_if_exception_type,
 )
 from transformers import AutoTokenizer
 
@@ -15,9 +19,11 @@ load_dotenv(".env")
 
 provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
+T = TypeVar("T", bound=BaseModel)
+
 
 class BaseLLM:
-    def __init__(self, provider: str, system_prompt=None):
+    def __init__(self, provider: str, system_prompt: Union[str, None] = None):
         self.system_prompt = (
             system_prompt if system_prompt else "You are an helpful assistant"
         )
@@ -42,6 +48,8 @@ class BaseLLM:
             base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
             api_key = os.getenv("GEMINI_API_KEY", None)
             self.default_model = "gemini-2.0-flash"
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
 
         self.client = oai.OpenAI(
             base_url=base_url,
@@ -52,7 +60,7 @@ class BaseLLM:
             "meta-llama/Llama-3.3-70B-Instruct"
         )
 
-    def count_tokens(self, content):
+    def count_tokens(self, content: str) -> int:
         token_count = len(self.tokenizer.encode(content))
         return token_count
 
@@ -62,16 +70,17 @@ class LLM(BaseLLM):
     Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
     """
 
-    def __init__(self, provider: str, system_prompt=None, model=None):
+    def __init__(
+        self,
+        provider: str,
+        system_prompt: Union[str, None] = None,
+        model: Union[str, None] = None,
+    ):
         super().__init__(provider, system_prompt)
 
-        self.model = model if model else self.default_model
-        self.config = {
+        self.model: str = model if model else self.default_model
+        self.config: Dict[str, Any] = {
             "model": self.model,
-            "messages": None,
-            "temperature": None,
-            "top_p": None,
-            "max_completion_tokens": None,
         }
 
     @retry(
@@ -79,8 +88,9 @@ class LLM(BaseLLM):
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
-    def generate(self, model: str, messages: List[Dict[str, str]], **kwargs):
-
+    def generate(
+        self, model: str, messages: List[Dict[str, str]], **kwargs: Dict[str, Any]
+    ) -> ChatCompletion:
         self.config |= {
             "model": model or self.model,
             "messages": messages,
@@ -88,19 +98,27 @@ class LLM(BaseLLM):
         }
 
         try:
-            response = self.client.chat.completions.create(**self.config)
+            response = self.client.chat.completions.create(stream=False, **self.config)
             return response
         except oai.RateLimitError:
             raise
         except oai.InternalServerError:
             raise
 
-    def __call__(self, prompt, **kwargs):
+    def __call__(self, prompt: str, **kwargs: Dict[str, Any]) -> str:
         message = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
         ]
-        return self.generate(self.model, message).choices[0].message.content
+
+        response = (
+            self.generate(self.model, message, **kwargs).choices[0].message.content
+        )
+
+        if not isinstance(response, str):
+            raise TypeError()
+        else:
+            return response
 
 
 class StructLLM(BaseLLM):
@@ -108,11 +126,16 @@ class StructLLM(BaseLLM):
     Base Gemini Wrapper for gemini-2.0 flash and pro models. Uses OpenAI Client using gemini inference base url.
     """
 
-    def __init__(self, provider: str, system_prompt=None, model=None):
+    def __init__(
+        self,
+        provider: str,
+        system_prompt: Union[str, None] = None,
+        model: Union[str, None] = None,
+    ):
         super().__init__(provider, system_prompt)
 
         self.model = model if model else self.default_model
-        self.config = {
+        self.config: Dict[str, Any] = {
             "model": self.model,
             "messages": None,
             "temperature": 0,
@@ -125,8 +148,13 @@ class StructLLM(BaseLLM):
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
-    def generate(self, model: str, messages: List[Dict[str, str]], format, **kwargs):
-
+    def generate(
+        self,
+        model: str,
+        messages: List[Dict[str, str]],
+        format: Type[T],
+        **kwargs: Dict[str, Any],
+    ) -> ParsedChatCompletion[T]:
         self.config |= {
             "model": model or self.model,
             "messages": messages,
@@ -142,16 +170,21 @@ class StructLLM(BaseLLM):
         except oai.InternalServerError:
             raise
 
-    def __call__(self, prompt, format, **kwargs):
+    def __call__(self, prompt: str, format: Type[T], **kwargs: Dict[str, Any]) -> T:
         message = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": prompt},
         ]
-        return (
+        response = (
             self.generate(self.model, message, format, **kwargs)
             .choices[0]
             .message.parsed
         )
+
+        if not isinstance(response, format):
+            raise TypeError()
+
+        return response
 
 
 class EmbeddingModel:
@@ -165,15 +198,16 @@ class EmbeddingModel:
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
         self.model = "text-embedding-004"
-        self.config = {"model": self.model, "input": None}
+        self.config: Dict[str, Any] = {"model": self.model, "input": None}
 
     @retry(
         retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
         wait=wait_random_exponential(min=5, max=60),
         stop=stop_after_attempt(10),
     )
-    def generate(self, model: str, texts: List[Dict[str, str]], **kwargs):
-
+    def generate(
+        self, model: str, texts: Union[str, List[str]], **kwargs: Dict[str, Any]
+    ) -> CreateEmbeddingResponse:
         self.config |= {
             "model": model or self.model,
             "input": texts,
@@ -188,6 +222,5 @@ class EmbeddingModel:
         except oai.InternalServerError:
             raise
 
-    def __call__(self, texts: List[str]):
-
+    def __call__(self, texts: Union[str, List[str]]):
         return [data.embedding for data in self.generate(self.model, texts).data]

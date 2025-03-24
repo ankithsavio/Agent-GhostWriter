@@ -1,5 +1,7 @@
+from typing import List, Union
+
 import yaml
-from typing import List
+
 from llms.basellm import LLM
 
 provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
@@ -9,7 +11,7 @@ class Prompt:
     def __init__(
         self,
         prompt: str,
-        watch: List[str] = None,
+        watch: Union[List[str], None] = None,
         token_limit: int = 4096,
         **kwargs,
     ):
@@ -43,7 +45,7 @@ class Prompt:
 
     def _summarize(self, content):
         summary_prompt = f"Please summarize the following content concisely while preserving key information:\n{content}"
-        return self.llm.generate(summary_prompt)
+        return self.llm(summary_prompt)
 
     def __str__(self):
         prompt = self.prompt + "\n" + "\n".join(self.dynamic_attr.values())
@@ -59,7 +61,7 @@ class Prompt:
             content_end = original_content.rfind(f"\n</{key}>")
             if content_start >= 0 and content_end >= 0:
                 content = original_content[content_start:content_end]
-                summary = self._summarize(key, content)
+                summary = self._summarize(content)
                 attrs[key] = f"<{key}>\n{summary}\n</{key}>"
 
         return self.prompt + "\n" + "\n".join(attrs.values())

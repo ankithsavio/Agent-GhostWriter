@@ -1,16 +1,21 @@
-import yaml
 import queue
+from typing import Type, TypeVar
+
+import yaml
 from pydantic import BaseModel
-from ghost_writer.utils.prompt import Prompt
+
 from ghost_writer.utils.persona import Personas
-from ghost_writer.utils.workers import Worker, Message
+from ghost_writer.utils.prompt import Prompt
+from ghost_writer.utils.workers import Worker
 from llms.basellm import LLM, StructLLM
+from llms.conversation import Message
 
 provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
+T = TypeVar("T", bound=BaseModel)
+
 
 class Storm:
-
     def __init__(self):
         self.llm = LLM(
             provider=provider_config["llm"]["provider"],
@@ -70,7 +75,7 @@ class Storm:
         self.push_update(worker)
         return message
 
-    def get_search_queries(self, worker: Worker, model: BaseModel, prompt: Prompt):
+    def get_search_queries(self, worker: Worker, model: Type[T], prompt: Prompt):
         """
         Generate search queries for a vector database based on a worker's conversation and prompt.
         Args:

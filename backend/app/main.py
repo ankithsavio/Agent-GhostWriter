@@ -1,9 +1,11 @@
 import os
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
-from backend.app.router import EngineRouter
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+
+from backend.app.router import EngineRouter
 
 
 @asynccontextmanager
@@ -26,6 +28,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 app.include_router(EngineRouter().router)
+
+origins = [os.getenv("FRONTEND_URL", "http://localhost:3000")]
 
 app.add_middleware(
     CORSMiddleware,

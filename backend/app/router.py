@@ -1,18 +1,20 @@
+import asyncio
+import os
+import queue
+from typing import Dict, List, Tuple
+
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     File,
     UploadFile,
     WebSocket,
-    BackgroundTasks,
     WebSocketDisconnect,
 )
 from fastapi.responses import JSONResponse
-from backend.engine import WriterEngine, Worker
-from typing import List, Dict, Tuple
 from pydantic import BaseModel
-import queue
-import asyncio
-import os
+
+from backend.engine import Worker, WriterEngine
 
 
 class TextInput(BaseModel):
@@ -20,7 +22,6 @@ class TextInput(BaseModel):
 
 
 class EngineRouter:
-
     def __init__(self):
         self.router = APIRouter()
         self.engine = WriterEngine()
@@ -35,7 +36,6 @@ class EngineRouter:
         self.register_restart_route()
 
     def register_upload_routes(self):
-
         @self.router.post("/api/upload_documents")
         async def upload_files(
             bgtask: BackgroundTasks,
@@ -55,7 +55,7 @@ class EngineRouter:
                     content = await doc.read()
                     file_path = os.path.join(
                         "backend/uploads/",
-                        doc.filename,
+                        doc.filename or f"temp_file_{id(doc)}",
                     )
                     files.append((content, file_path))
                 bgtask.add_task(self.gen_user_kb, files)
@@ -93,7 +93,6 @@ class EngineRouter:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
     def register_document_view_routes(self):
-
         @self.router.get("/research_doc")
         async def get_job_research():
             """
@@ -128,7 +127,9 @@ class EngineRouter:
                 if not self.post_workflow_event.is_set():
                     await self.post_workflow_event.wait()
 
-                return JSONResponse(content={"content": self.engine.reports["resume"]})
+                return JSONResponse(
+                    content={"content": self.engine.final_reports["resume"]}
+                )
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -148,13 +149,12 @@ class EngineRouter:
                     await self.post_workflow_event.wait()
 
                 return JSONResponse(
-                    content={"content": self.engine.reports["cover_letter"]}
+                    content={"content": self.engine.final_reports["cover_letter"]}
                 )
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
 
     def register_conversation_view_routes(self):
-
         @self.router.get("/conversations")
         async def get_conversation_list(bgtask: BackgroundTasks):
             """

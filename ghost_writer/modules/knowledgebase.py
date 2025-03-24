@@ -1,14 +1,16 @@
 import os
-import yaml
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Type, TypeVar, Union
+
 import pymupdf4llm as pymupdf
+import yaml
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from pydantic import BaseModel
-from typing import Union, List, Dict, Type, TypeVar
-from ghost_writer.utils.prompt import Prompt
+
 from ghost_writer.modules.search import GoogleWeb
 from ghost_writer.modules.vectordb import Qdrant
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from ghost_writer.utils.prompt import Prompt
 from llms.basellm import LLM, StructLLM
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -16,18 +18,17 @@ provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
 
 class KnowledgeBaseBuilder:
-
     def __init__(
         self,
         source: Union[str, List[str]],
         source_name: str,
-        model: BaseModel,
+        model: Type[T],
         research: bool,
         retrieval_limit: int,
         portfolio_chunk_size: int,
         portfolio_chunk_overlap: int,
-        webpage_chunk_size: int = None,
-        webpage_chunk_overlap: int = None,
+        webpage_chunk_size: int = 1000,
+        webpage_chunk_overlap: int = 0,
     ):
         self.struct_llm = StructLLM(
             provider=provider_config["structllm"]["provider"],
@@ -65,7 +66,7 @@ class KnowledgeBaseBuilder:
         if research:
             self.search = GoogleWeb(webpage_chunk_size, webpage_chunk_overlap)
 
-    def load_files(self, items: Union[str, List[str]]):
+    def load_files(self, items: Union[str, List[str]]) -> List[str]:
         """
         Load and process multiple files or text items into strings.
         Args:
@@ -75,22 +76,19 @@ class KnowledgeBaseBuilder:
             List[str]: List of processed docs in string.
         """
 
-        def load_file(path):
-            md = pymupdf.to_markdown(path)
+        def load_file(path: str):
+            md = pymupdf.to_markdown(path)  # type: ignore
             return md
-
-        def load_txt(doc):
-            return doc
 
         if isinstance(items, str):
             if os.path.isfile(items):
                 return [load_file(items)]
             else:
-                return [load_txt(items)]
+                return [items]
         elif isinstance(items, list):
             results = []
             for item in items:
-                results.append(*self.load_files(item))
+                results.extend(self.load_files(item))
             return results
 
     def structured_document(self, prompt: Prompt):
@@ -130,7 +128,11 @@ class KnowledgeBaseBuilder:
             result_list.append(
                 {
                     "query": query,
-                    "result": [result.payload["doc"]["text"] for result in results],
+                    "result": [
+                        result.payload["doc"]["text"]
+                        for result in results
+                        if result.payload
+                    ],
                 }
             )
 
@@ -188,7 +190,7 @@ class KnowledgeBaseBuilder:
             summarized_results.append({"summary": response} | result)
         return summarized_results
 
-    def create_knowledge_document(self, gen_prompt: Prompt):
+    def create_knowledge_document(self, gen_prompt: Prompt) -> str:
         """
         Create a knowledge document using an LLM based on the provided prompt and prepare for RAG.
         Args:
@@ -224,7 +226,7 @@ class KnowledgeBaseBuilder:
         search_prompt: Prompt,
         search_limit: int,
         gen_prompt: Prompt,
-    ) -> T:
+    ) -> str:
         """
         Create a knowledge document using an LLM based on the provided prompt with web search and prepare for RAG.
         Args:
@@ -259,11 +261,10 @@ class KnowledgeBaseBuilder:
         self.knowledge_document = ""
 
         def generate_article_section(topic, search_results):
-
             document_curation = f"#{topic}\n\n"
 
             for item in search_results:
-                search_results_formatted = f"""<Query>\n{item['query']}\n</Query>\n<Result>\n{item['summary']}\n</Result>"""
+                search_results_formatted = f"""<Query>\n{item["query"]}\n</Query>\n<Result>\n{item["summary"]}\n</Result>"""
                 document_curation = self.llm(
                     str(gen_prompt)
                     + str(
@@ -278,7 +279,6 @@ class KnowledgeBaseBuilder:
             return document_curation
 
         with ThreadPoolExecutor(len(search_model.model_fields)) as executor:
-
             future_topics = {
                 executor.submit(
                     generate_article_section, result["topic"], result["results"]

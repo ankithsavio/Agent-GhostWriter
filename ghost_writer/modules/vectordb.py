@@ -1,16 +1,19 @@
 import os
+from typing import Dict, List, Union
+
 import spacy
-from typing import List, Union, Dict
-from llms.basellm import EmbeddingModel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
+    Condition,
     Distance,
-    VectorParams,
-    PointStruct,
-    Filter,
     FieldCondition,
+    Filter,
     MatchValue,
+    PointStruct,
+    VectorParams,
 )
+
+from llms.basellm import EmbeddingModel
 
 
 class Qdrant:
@@ -104,7 +107,7 @@ class Qdrant:
         ]
         self.client.upsert(collection_name=collection_name, points=points)
 
-    def query_documents(self, collection_name, query, limit=5):
+    def query_documents(self, collection_name: str, query: str, limit=5):
         """
         Queries the vector database for similar documents based on semantic similarity and named entities.
         Args:
@@ -118,8 +121,8 @@ class Qdrant:
         """
 
         query_emb = self.embedding_model(query)
-        query_entities = self.get_entities(query)
-        filter_conditions = [
+        query_entities: List[str] = self.get_entities(query)  # type: ignore
+        filter_conditions: List[Condition] = [
             FieldCondition(key="entity", match=MatchValue(value=entity))
             for entity in query_entities
         ]
@@ -132,4 +135,4 @@ class Qdrant:
             query_filter=query_filter,
             limit=limit,
         )
-        return [result for result in results.points]
+        return results.points

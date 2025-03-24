@@ -1,23 +1,25 @@
-import os
-import yaml
-import time
-import requests
 import asyncio
+import os
 import random
-from typing import List, Dict
-from trafilatura import extract
+import time
+from typing import Dict, List, Union, Dict
 from urllib.parse import urlparse
-from crawl4ai import AsyncWebCrawler, CrawlResult
+
+import requests
+import yaml
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CrawlResult
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.tools import DuckDuckGoSearchResults
+from trafilatura import extract
+
 from ghost_writer.modules.vectordb import Qdrant
 from llms.basellm import LLM
-from langchain_community.tools import DuckDuckGoSearchResults
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
 
 class BaseWebSearch:
-    def __init__(self, webpage_chunk_size, webpage_chunk_overlap):
+    def __init__(self, webpage_chunk_size: int, webpage_chunk_overlap: int):
         """
         Initialize the search module.
         """
@@ -51,7 +53,7 @@ class BaseWebSearch:
             model=provider_config["llm"]["model"],
         )
 
-        self.scraped_urls = []
+        self.scraped_urls: List[str] = []
         self.excluded_urls = ["linkedin.com"]
 
     def get_domain(self, url: str):
@@ -66,7 +68,7 @@ class BaseWebSearch:
         parsed_url = urlparse(url)
         return parsed_url.netloc
 
-    def clean_html(self, content: CrawlResult):
+    def clean_html(self, content: CrawlResult) -> Union[str, None]:
         """
         Cleans HTML content by extracting plain text.
         Args:
@@ -83,7 +85,9 @@ class BaseWebSearch:
             output_format="txt",
         )
 
-    def get_web_content(self, web_results: List[dict]) -> str:
+    def get_web_content(
+        self, web_results: List[Dict[str, str]]
+    ) -> List[Dict[str, str]]:
         """
         Extracts and processes web content from a list of URLs using asynchronous web crawling.
         This method crawls multiple web pages simultaneously, extracts their content based on
@@ -100,15 +104,12 @@ class BaseWebSearch:
                 - content (str): The cleaned and processed content from the webpage
         """
 
-        urls = [item["url"] for item in web_results]
+        urls: List[str] = [item["url"] for item in web_results]
         self.scraped_urls.extend(urls)
 
         async def _crawl():
             async with AsyncWebCrawler(headless=True, sleep_on_close=True) as crawler:
-                results = await crawler.arun_many(
-                    urls=urls,
-                    css_selector="main.content",
-                    word_count_threshold=50,
+                config = CrawlerRunConfig(
                     excluded_tags=[
                         "form",
                         "header",
@@ -118,9 +119,13 @@ class BaseWebSearch:
                     exclude_external_links=True,
                     exclude_social_media_links=True,
                     exclude_external_images=True,
-                    html2text={
-                        "escape_dot": False,
-                    },
+                )
+
+                results: List[CrawlResult] = await crawler.arun_many(  # type: ignore
+                    urls=urls,
+                    config=config,
+                    css_selector="main.content",
+                    word_count_threshold=50,
                 )
 
                 return [
@@ -135,7 +140,7 @@ class BaseWebSearch:
 
         return asyncio.run(_crawl())
 
-    def split_documents(self, content_list: List[Dict[str, str]]):
+    def split_documents(self, content_list: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """
         Split documents into smaller chunks for processing.
         Args:
@@ -151,21 +156,23 @@ class BaseWebSearch:
 
         """
 
-        doc_list = []
+        doc_list: List[Dict[str, str]] = []
         for content in content_list:
-            chunks = self.text_splitter.split_text(content.get("content"))
-            chunk_list = [
-                {
-                    "title": content.get("title", ""),
-                    "url": content.get("url", ""),
-                    "text": chunk,
-                }
-                for chunk in chunks
-            ]
-            doc_list.extend(chunk_list)
+            text_content = content.get("content", None)
+            if isinstance(text_content, str):
+                chunks = self.text_splitter.split_text(text_content)
+                chunk_list = [
+                    {
+                        "title": content.get("title", ""),
+                        "url": content.get("url", ""),
+                        "text": chunk,
+                    }
+                    for chunk in chunks
+                ]
+                doc_list.extend(chunk_list)
         return doc_list
 
-    def generate_fake_document(self, query: str):
+    def generate_fake_document(self, query: str) -> str:
         """
         Generates a hypothetical document using the HyDE (Hypothetical Document Embedding) approach.
         Args:
@@ -174,11 +181,11 @@ class BaseWebSearch:
         Returns:
             str: A hypothetical document snippet that answers the query, with length equal to chunk_size.
         """
-        prompt = """Given the question '{query}', generate a hypothetical article snippet that \
+        prompt: str = """Given the question '{query}', generate a hypothetical article snippet that \
         directly answers this question. The article snippet should be detailed, in-depth and should directly \
         answer the question. The document size has to be exactly {chunk_size} characters."""
 
-        hy_document = self.llm(prompt.format(query=query, chunk_size=self.chunk_size))
+        hy_document: str = self.llm(prompt.format(query=query, chunk_size=self.chunk_size))
 
         return hy_document
 
@@ -212,7 +219,7 @@ class BaseWebSearch:
         ]
         return list_of_payload
 
-    def run(self, query: str, limit: int = None):
+    def run(self, query: str, limit: int = 5):
         """
         Executes a web search, retrieves content, and performs vector database operations.
         Args:
@@ -234,7 +241,7 @@ class BaseWebSearch:
         )
         return [{"query": query, "result": self.format_payloads(result)}]
 
-    def run_many(self, queries: List[str], limit: int = None):
+    def run_many(self, queries: List[str], limit: int = 5):
         """
         Process multiple search queries, fetch web content, and store in vector database.
         See run method.
@@ -246,7 +253,7 @@ class BaseWebSearch:
             url_list.extend(result)
         content_list = self.get_web_content(url_list)
         if not content_list:
-            return [{"query": query, "result": self.format_payloads([])}]
+            return [{"query": "", "result": self.format_payloads([])}]
         self.vectordb.upsert_documents(
             self.collection_name, self.split_documents(content_list)
         )
@@ -258,8 +265,7 @@ class BaseWebSearch:
             result_list.append({"query": query, "result": self.format_payloads(result)})
         return result_list
 
-    def get_urls(self):
-
+    def get_urls(self, query: str, limit: int = 3, **kwargs):
         raise NotImplementedError
 
 
@@ -373,7 +379,7 @@ class DDGWeb(BaseWebSearch):
             output_format="list", keys_to_include=["title", "link"]
         )
 
-    def get_urls(self, query, limit=5, **kwargs):
+    def get_urls(self, query: str, limit=5, **kwargs):
         """
         Fetch search results from a specified search engine instance based on the given query.
         Args:

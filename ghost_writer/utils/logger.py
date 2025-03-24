@@ -1,5 +1,5 @@
-import logging
 import asyncio
+import logging
 from logging.handlers import QueueHandler
 
 log_queue = asyncio.Queue()

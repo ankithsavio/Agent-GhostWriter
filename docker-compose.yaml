@@ -40,8 +40,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    # environment:
-    #   - NODE_ENV=production
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://backend:8080
     depends_on:
       - backend
   
@@ -56,6 +56,7 @@ services:
     environment:
       - QDRANT_URL=http://qdrant:6333
       - MONGO_URL=mongodb://${MONGO_ROOT_USERNAME:-root}:${MONGO_ROOT_PASSWORD:-example}@mongodb_service:27017/?authSource=admin
+      - FRONTEND_URL=http://frontend:3000
     depends_on:
       - mongodb_service
       - qdrant

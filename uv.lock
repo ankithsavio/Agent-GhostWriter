@@ -33,6 +33,11 @@ dependencies = [
     { name = "wsproto" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "crawl4ai", specifier = ">=0.5.0.post4" },
@@ -54,6 +59,9 @@ requires-dist = [
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "wsproto", specifier = ">=1.2.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pyright", specifier = ">=1.1.397" }]
 
 [[package]]
 name = "aiofiles"
@@ -1793,6 +1801,15 @@ wheels = [
 ]
 
 [[package]]
+name = "nodeenv"
+version = "1.9.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/16/fc88b08840de0e0a72a2f9d8c6bae36be573e475a6326ae854bcc549fc45/nodeenv-1.9.1.tar.gz", hash = "sha256:6ec12890a2dab7946721edbfbcd91f3319c6ccc9aec47be7c7e6b7011ee6645f", size = 47437 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/1d/1b658dbd2b9fa9c4c9f32accbfc0205d532c8c6194dc0f2a4c0428e7128a/nodeenv-1.9.1-py2.py3-none-any.whl", hash = "sha256:ba11c9782d29c27c70ffbdda2d7415098754709be8a7056d79a737cd901155c9", size = 22314 },
+]
+
+[[package]]
 name = "numpy"
 version = "2.2.4"
 source = { registry = "https://pypi.org/simple" }
@@ -2418,6 +2435,19 @@ name = "pyperclip"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/30/23/2f0a3efc4d6a32f3b63cdff36cd398d9701d26cda58e3ab97ac79fb5e60d/pyperclip-1.9.0.tar.gz", hash = "sha256:b7de0142ddc81bfc5c7507eea19da920b92252b548b96186caf94a5e2527d310", size = 20961 }
+
+[[package]]
+name = "pyright"
+version = "1.1.397"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "nodeenv" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/23/cefa10c9cb198e0858ed0b9233371d62bca880337f628e58f50dfdfb12f0/pyright-1.1.397.tar.gz", hash = "sha256:07530fd65a449e4b0b28dceef14be0d8e0995a7a5b1bb2f3f897c3e548451ce3", size = 3818998 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/b5/98ec41e1e0ad5576ecd42c90ec363560f7b389a441722ea3c7207682dec7/pyright-1.1.397-py3-none-any.whl", hash = "sha256:2e93fba776e714a82b085d68f8345b01f91ba43e1ab9d513e79b70fc85906257", size = 5693631 },
+]
 
 [[package]]
 name = "python-dateutil"
