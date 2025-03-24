@@ -2,7 +2,7 @@ import asyncio
 import os
 import random
 import time
-from typing import Dict, List, Union, Dict
+from typing import List, Union, Dict
 from urllib.parse import urlparse
 
 import requests
@@ -140,7 +140,9 @@ class BaseWebSearch:
 
         return asyncio.run(_crawl())
 
-    def split_documents(self, content_list: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def split_documents(
+        self, content_list: List[Dict[str, str]]
+    ) -> List[Dict[str, str]]:
         """
         Split documents into smaller chunks for processing.
         Args:
@@ -185,7 +187,9 @@ class BaseWebSearch:
         directly answers this question. The article snippet should be detailed, in-depth and should directly \
         answer the question. The document size has to be exactly {chunk_size} characters."""
 
-        hy_document: str = self.llm(prompt.format(query=query, chunk_size=self.chunk_size))
+        hy_document: str = self.llm(
+            prompt.format(query=query, chunk_size=self.chunk_size)
+        )
 
         return hy_document
 
