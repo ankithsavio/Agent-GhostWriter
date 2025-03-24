@@ -12,7 +12,7 @@ interface SidebarProps {
 export function Sidebar({ currentPage, onPageChange, onRestart, isRestarting = false }: SidebarProps) {
   const buttons = [
     { id: "page1", label: "Upload" },
-    { id: "page2", label: "Edit" },
+    { id: "page2", label: "Reports" },
     { id: "page3", label: "Research Doc" },
   ]
 

@@ -11,8 +11,24 @@ import { Loader2 } from "lucide-react"
 import { ChatDisplay } from "@/components/ui/chat-display"
 import * as api from "@/lib/api"
 
-const API_BASE_URL = "http://localhost:8080"
-const WS_BASE_URL = "ws://localhost:8080"
+// Get the base URL from environment variable or use localhost as fallback
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "localhost:8080"
+
+// Determine protocols and hostname
+let hostname = BACKEND_URL;
+let httpProtocol = "http:";
+let wsProtocol = "ws:";
+
+if (hostname.startsWith("https://")) {
+  hostname = hostname.slice(8); // Remove "https://"
+  httpProtocol = "https:";
+  wsProtocol = "wss:";
+} else if (hostname.startsWith("http://")) {
+  hostname = hostname.slice(7); // Remove "http://"
+}
+
+const API_BASE_URL = `${httpProtocol}//${hostname}`
+const WS_BASE_URL = `${wsProtocol}//${hostname}`
 
 interface Message {
   role: string

@@ -7,7 +7,7 @@ import { Page2 } from "@/components/page-2"
 import { Page3 } from "@/components/page-3"
 import { useToast } from "@/components/ui/use-toast"
 
-const API_BASE_URL = "http://localhost:8080"
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "localhost:8080"
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<"page1" | "page2" | "page3">("page1")
