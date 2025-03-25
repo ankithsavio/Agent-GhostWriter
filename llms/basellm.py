@@ -81,6 +81,10 @@ class LLM(BaseLLM):
         self.model: str = model if model else self.default_model
         self.config: Dict[str, Any] = {
             "model": self.model,
+            "messages": None,
+            "temperature": None,
+            "top_p": None,
+            "max_completion_tokens": None,
         }
 
     @retry(

@@ -27,51 +27,133 @@ Agentic Ghost Writer is a multi-persona AI Workflow that can drastically improve
 
 ## Setup
 ### Prerequisites
-Python version: 3.10
+Ensure you have the following installed on your system:
+- Operating System: Ubuntu (Tested on Ubuntu 20.04/22.04)
 
-Install uv python manager : pip install uv
+- Python: Version 3.10+ 
 
-Install Docker
+- Package Manager: [uv](https://docs.astral.sh/uv/getting-started/installation/) (Lightweight Python package manager)
 
-LLM providers: supports OpenAI, Gemini, Groq, Huggingface Inference and Togetherai
-Togetherai Approach(Recommended):
+- Docker: Install Docker following the official [Docker installation guide](https://docs.docker.com/engine/install/)
 
-Goto this [website] and get your API key to use meta/meta-llama-3.3-70b-free (default)
+- Docker Compose: Install Docker Compose following the official [Docker Compose Installation Guide](https://docs.docker.com/compose/install/standalone/)
 
-Web Search providers: supports Google Custom Search, Searxng and DuckDuckGO(langchain_community)
-	Google Custom Search Approach (Recommended):
-	Goto this [website] and get you API key and create you engine copy [cx] and [key]
+### Setup API Keys
 
-Set your environment variable: .env.example -> .env code
+- LLM API Keys: Multiple proivders are supported, below is an recommended approach (default setup).
+   - TogetherAI: Obtain API Key from [here](https://api.together.ai/).
+   - Gemini: Obtain API Key from [here](https://aistudio.google.com/apikey).
+
+   set them as environment variables in a `.env` file.
+   ```bash
+   export TOGETHER_API_KEY="your_api_key_1"
+   export GEMINI_API_KEY="your_api_key_2"
+   ```
+   - Supported providers: OpenAI, Gemini, TogetherAI, Huggingface Inference, Ollama
+- Web Search API: Multiple services are supported, below is an recommended approach (default setup).
+   - Custom Search API from Google: Obtain API Key from [here](https://developers.google.com/custom-search/v1/overview)
+   - Create an Search Engine from [here](https://programmablesearchengine.google.com/controlpanel/all)
+   - Get `Search Engine ID` in the Overview page's Basic section. 
+   set them as environment variables in a `.env` file.
+   ```bash
+   export GOOGLE_WEB_API_KEY="your_api_key"
+   export GOOGLE_WEB_CX="your_search_engine_id"
+   ```
+   - Supported services: Custom Search API (Google), DuckDuckGO (Langchain), SearXNG (hosted locally).
+
+
+
+
+
+- `.env` template
+```bash
+PYTHONPATH=
+TOGETHER_API_KEY=
+GEMINI_API_KEY=
+GOOGLE_WEB_API_KEY=
+GOOGLE_WEB_CX =
+MONGO_ROOT_USERNAME=
+MONGO_ROOT_PASSWORD=
+```
+
+
+
+
 
 
 ### Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ankithsavio/Agent-GhostWriter.git
+   cd Agent-GhostWriter
+   ```
 
-Docker :
-Setup the project and access the UI through localhost:3000
-Docker compose up
+2. Start the application using Docker Compose:
+   ```bash
+   docker compose up 
+   ```
+
+3. If you make changes to the code, rebuild the containers using:
+   ```bash
+   docker compose up --build
+   ```
+4. To stop the application:
+   ```bash
+   docker compose down
+   ```
 
 
 
 ### Configurations:
 
-config/llms.yaml
-	llm: 
-	
-	structllm: 
+Customize the default settings for LLMs and System Orchestration through configuration files located in the `config/` directory. Below are the key configuration files and their purposes.
 
-	ollama:
+Default settings are recommended.
 
-config/ghost_writer.yaml
-	engine:
 
-	knowledge_builder:
+**LLM Configuration** (`config/llms.yaml`)
 
-self-host all services:
-	ollama in config/llms.yaml
-		download ollama
+Update the values in this file to change which provider or model is used by each component. For example:
+```yaml
+llm: 
+  model: ~                # Set your default LLM model here
+  provider: "togetherai"  # Change the provider as required
 
-	docker-compose.web.yml
+structllm: 
+  model: ~                # Set your default Structured LLM model here
+  provider: "google"      # Change the provider as required
+
+ollama:
+  model: ~                # Define the model for Ollama
+
+reasoning:
+  model: "gemini-2.0-flash-thinking-exp-01-21"  # Specify your reasoning model here
+  provider: "google"                           # Change the provider as required
+```
+
+**Application Configuration** (`config/ghost_writer.yaml`)
+Modify the settings below to adjust how the system processes knowledge building and simulate conversations.
+
+```yaml
+engine:
+  simulation:
+    iterations: 5  # Adjust the number of conversation iterations
+
+knowledge_builder:
+  qdrant:          # Configuration for the vector database 
+    query:
+      limit: 5     # Limit on the number of query results
+  search:
+    url:
+      limit: 3     # Limit on the number of Web search results
+    webpage: 
+      chunk_size: 2000   # Maximum size of webpage chunks
+      chunk_overlap: 0   # Overlap between webpage chunks
+  portfolio:
+    chunk_size: 500      # Maximum size of portfolio article chunks
+    chunk_overlap: 0     # Overlap between portfolio article chunks
+
+```
 
 
 ## Usage
@@ -82,52 +164,6 @@ Video
 
       Outputs
 
-
-## Architecture
-System Diagram
-
-	More detailed diagram
-
-
-
-Component Breakdown
-
-	backend
-      engine.py
-	
-	ghost_writer
-		vectordb.py
-		search.py
-		knowledgebasebuilder.py
-		storm.py
-
-		
-
-
-## Setup and Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ankithsavio/Agent-GhostWriter.git
-   cd Agent-GhostWriter
-   ```
-
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate # On Windows use `venv\Scripts\activate`
-   pip install -r requirements.txt
-   ```
-
-3. Configure API keys in a `.env` file:
-   ```env
-   PYTHONPATH=
-   GEMINI_API_KEY=
-   TOGETHER_API_KEY=
-   MONGO_ROOT_USERNAME=
-   MONGO_ROOT_PASSWORD=
-   GOOGLE_WEB_API_KEY=
-   GOOGLE_WEB_CX=
-   ```
 
 ## Dataflow Diagram
 
