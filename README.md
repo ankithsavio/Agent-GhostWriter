@@ -19,8 +19,8 @@ Agentic Ghost Writer is a multi-persona AI Workflow that can drastically improve
 
 ## Why use this tool?
 - Crafting CV and Cover Letter is highly time consuming. This project is NOT for writing these documents from scratch but instead for aiding you to make this process faster with the help of structures reports that suggest how to adapt your documents for different job applications. Doing it this way preserves the highly important personal-touch of the users that companies sought out for.
-- The project is open source and can be self hosted to use it for free by following some guidelines [mentioned below]. It is designed to be quick and manage your personal free-quota gracefully.
-- It is highly configurable with minimal changes to config files. The default settings take approximately ~5mins to generate reports and the users can increase or decrease this duration with a trade-off for accuracy. Configuration customization details are [mentioned below].
+- The project is open source and can be self hosted to use it for free by following some guidelines in [Setup](#setup). It is designed to be quick and manage your personal free-quota gracefully.
+- It is highly configurable with minimal changes to config files. The default settings take approximately ~5mins to generate reports and the users can increase or decrease this duration with a trade-off for accuracy. Configuration customization details are [mentioned below](#configurations).
 
 
 

@@ -7,7 +7,7 @@ services:
     image: mongo:latest
     restart: unless-stopped
     ports:
-      - "127.0.0.1:27018:27017"
+      - "27017"
     volumes:
       - mongodb-data:/data/db
     environment:
@@ -24,7 +24,7 @@ services:
     image: qdrant/qdrant:latest
     restart: unless-stopped
     ports:
-      - "6333:6333" 
+      - "6333" 
     environment:
       - RUN_MODE=production
       - QDRANT__GPU__INDEXING=1 
@@ -40,8 +40,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_BACKEND_URL=http://backend:8080
     depends_on:
       - backend
   
@@ -51,15 +49,26 @@ services:
       context: . 
       dockerfile: backend/Dockerfile
     ports:
-      - "8080:8080"
+      - "8080"
     env_file: ".env"
     environment:
       - QDRANT_URL=http://qdrant:6333
       - MONGO_URL=mongodb://${MONGO_ROOT_USERNAME:-root}:${MONGO_ROOT_PASSWORD:-example}@mongodb_service:27017/?authSource=admin
-      - FRONTEND_URL=http://frontend:3000
+      - FRONTEND_ORIGIN_URL=http://localhost:3000
     depends_on:
       - mongodb_service
       - qdrant
+  
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    depends_on:
+      - backend
+    ports:
+      - "80:80"  
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/nginx.conf:ro  
+
 
 volumes:
   mongodb-data:
