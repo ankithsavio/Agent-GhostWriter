@@ -56,9 +56,7 @@ class BaseLLM:
             api_key=api_key,
         )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            "meta-llama/Llama-3.3-70B-Instruct"
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-32B-Instruct")
 
     def count_tokens(self, content: str) -> int:
         token_count = len(self.tokenizer.encode(content))
