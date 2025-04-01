@@ -48,6 +48,10 @@ class BaseLLM:
             base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
             api_key = os.getenv("GEMINI_API_KEY", None)
             self.default_model = "gemini-2.0-flash"
+        elif provider == "openrouter":
+            base_url = "https://openrouter.ai/api/v1"
+            api_key = os.getenv("OPENROUTER_API_KEY", None)
+            self.default_model = "meta-llama/llama-3.3-70b-instruct:free"
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 

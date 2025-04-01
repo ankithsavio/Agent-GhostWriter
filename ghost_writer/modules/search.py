@@ -2,7 +2,7 @@ import asyncio
 import os
 import random
 import time
-from typing import List, Union, Dict
+from typing import Dict, List, Union
 from urllib.parse import urlparse
 
 import requests
@@ -234,6 +234,8 @@ class BaseWebSearch:
         """
 
         results = self.get_urls(query, limit=limit)
+        if not results:
+            return [{"query": query, "result": self.format_payloads([])}]
         content_list: List = self.get_web_content(results)
         if not content_list:
             return [{"query": query, "result": self.format_payloads([])}]
@@ -254,7 +256,10 @@ class BaseWebSearch:
         url_list = []
         for query in queries:
             result = self.get_urls(query, limit=limit)
-            url_list.extend(result)
+            if result:
+                url_list.extend(result)
+        if not url_list:
+            return [{"query": "", "result": self.format_payloads([])}]
         content_list = self.get_web_content(url_list)
         if not content_list:
             return [{"query": "", "result": self.format_payloads([])}]

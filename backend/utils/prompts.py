@@ -151,3 +151,12 @@ If formatting issues were discussed or are apparent, give 1-2 brief formatting t
 
 If clarity issues were discussed, suggest 1-2 clarity improvements. E.g., "Simplify technical jargon in the 'Skills' section for broader readability.", "Ensure each bullet point clearly starts with your action and then the result."
 """
+
+REPORT_INSTRUCTIONS = """1. Strictly follow the format provided, including all specified sections and adhering to any instructions within those sections.
+2. Crucially, every piece of feedback or suggested update in the report must be strictly and solely derived from relevant information explicitly present in the `information_seeking_conversation`.
+3. Only use information from the conversation that directly pertains to improving the `user_cover_letter` for the context discussed (e.g., the specific job, company, user's skills/experiences mentioned).
+4. Do NOT introduce external knowledge, assumptions, or information not explicitly stated in the conversation.
+5. Ignore parts of the conversation that are irrelevant to updating the cover letter (e.g., unrelated topics).
+6. If the `information_seeking_conversation` contains **no specific, actionable information** relevant to improving a particular section as defined in the format, put "LGTM" in that section and nothing else.
+7. Only output the cover letter report strictly following the `<format>`. Do not include any introductory phrases, explanations, apologies, or any text outside the defined report structure.
+"""
