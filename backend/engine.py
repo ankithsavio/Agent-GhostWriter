@@ -365,7 +365,6 @@ class WriterEngine:
                 doc = "resume"
                 prompt = Prompt(
                     prompt="You are an expert resume editor and you are provided with an information_seeking_conversation and user_resume. You have to provide a report to update user_resume using the provided format",
-                    job_description=self.company_knowledge_base.source[0],
                     user_resume=self.user_knowledge_base.source[0],
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
@@ -378,7 +377,6 @@ class WriterEngine:
                 doc = "cover letter"
                 prompt = Prompt(
                     prompt="You are an expert cover letter editor and you are provided with an information_seeking_conversation and user_cover_letter. You have to provide a report to update user_cover_letter using the provided format",
-                    job_description=self.company_knowledge_base.source[0],
                     user_cover_letter=self.user_knowledge_base.source[1],
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
@@ -400,42 +398,67 @@ class WriterEngine:
                         self.reports[doc] |= {worker.role: report}
             return
 
-        def combine_report(workers: List[Worker], doc_report: Dict[str, str]):
-            """
-            Combine reports from different personas into a single report.
-            """
-            report_template = """
-            ###
-            Source: {worker}
-            Report: \n{content}
-            ###
-            """
-            reports = ""
-            for worker in workers:
-                worker_content = report_template.format(
-                    worker=worker.role, content=doc_report[worker.role]
-                )
-                reports += worker_content
+        def aggregate_reports(workers: List[Worker], doc_report: Dict[str, str]):
+            def combine_report():
+                """
+                Combine reports from different personas into a single report.
+                """
+                report_template = """
+                ###
+                Source: {worker}
+                Report: \n{content}
+                ###
+                """
+                reports = ""
+                for worker in workers:
+                    worker_content = report_template.format(
+                        worker=worker.role, content=doc_report[worker.role]
+                    )
+                    reports += worker_content
 
-            prompt = Prompt(
-                prompt="Combine provided reports into a single comprehensive report by adapting the format to accommodate for sources",
-                sources=reports,
-                example_format="""
-                            # Report 
-                            ## Title
-                            Content as bullet points 
-                            ## Title 2
-                            Content as bullet points 2
-                            """,
-                instructions="""
-                            1. Retain all substantive and unique information from the sources.
-                            2. Synthesize information across sources. Identify and merge points that convey the same core idea, even if worded differently, into a single, consolidated point. Avoid simple concatenation of lists. If a source's content for a specific section consists *only* of "LGTM" (or similar negligible confirmations), treat that source as providing no substantive information for that section and do not include "LGTM" or an empty bullet point in the final output for that source's contribution to that section.
-                            3. Merge the synthesized information from all sources into a single report strictly following the `example_format`. Ensure all unique and important details from the sources are covered.
-                            4. Only output the single report and no other additional details.
-                            """,
-            )
-            response = reasoning_model(str(prompt))
-            return response
+                prompt = Prompt(
+                    prompt="Combine provided reports into a single comprehensive report by adapting the format to accommodate for sources",
+                    sources=reports,
+                    example_format="""
+                                # Report 
+                                ## Title
+                                Content as bullet points 
+                                ## Title 2
+                                Content as bullet points 2
+                                """,
+                    instructions="""
+                                1. Retain all substantive and unique information from the sources.
+                                2. Synthesize information across sources. Identify and merge points that convey the same core idea, even if worded differently, into a single, consolidated point. Avoid simple concatenation of lists. If a source's content for a specific section consists *only* of "LGTM" (or similar negligible confirmations), treat that source as providing no substantive information for that section and do not include "LGTM" or an empty bullet point in the final output for that source's contribution to that section.
+                                3. Merge the synthesized information from all sources into a single report strictly following the `example_format`. Ensure all unique and important details from the sources are covered.
+                                4. Only output the single report and no other additional details.
+                                """,
+                )
+                response = reasoning_model(str(prompt))
+                return response
+
+            def rewrite_report(report):
+                """
+                Rewrite the final combined report
+                """
+                prompt = Prompt(
+                    prompt="You are an expert Career Advisor. Your task is to refine the provided draft_report to align with the job_description, ensuring the final report is optimized for resume/cover letter adaptation.  Only augment the draft_report with essential information from the job_description if demonstrably missing, logically derivable from the draft_report content, and crucial for job application relevance, prioritizing the draft_report as the grounded truth. Output the revised Report.",
+                    draft_report=report,
+                    job_description=self.company_knowledge_base.source[0],
+                    instructions="""
+                                1. Carefully examine the job_description to identify key skills, experiences, and qualifications sought by the employer.
+                                2. Thoroughly assess the draft_report to understand its existing content and recommendations for resume/cover letter adaptation, treating it as the primary source of truth.
+                                3. Systematically compare the job_description requirements against the content of the draft_report. Pinpoint any critical skills, experiences, or qualifications emphasized in the job_description that are demonstrably absent or insufficiently addressed in the draft_report.                               
+                                4. *Only* add information to the draft_report if it directly addresses a significant gap identified in step 3, is *logically derivable* or a direct refinement of existing points *within* the draft_report, and is *absolutely necessary* for enhancing the report's relevance to the job_description.  Avoid adding suggestions that introduce entirely new skills or experiences not already implied or mentioned in the draft_report.
+                                5. Ensure any suggested additions are genuinely derivable from the information already present in the draft_report.  Do not introduce suggestions that are based on assumptions or external knowledge not supported by the draft_report.
+                                7. Only output the final report and no other additional details.
+                                """,
+                )
+                response = reasoning_model(str(prompt))
+                return response
+
+            aggregated_report = combine_report()
+            final_report = rewrite_report(aggregated_report)
+            return final_report
 
         def process_content(content) -> str:
             """
@@ -456,7 +479,7 @@ class WriterEngine:
                 futures.append(
                     {
                         executor.submit(
-                            combine_report, self.personas, self.reports[doc]
+                            aggregate_reports, self.personas, self.reports[doc]
                         ): doc
                     }
                 )
