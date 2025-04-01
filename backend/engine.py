@@ -1,15 +1,25 @@
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
+from distutils.util import strtobool
 from threading import Lock
 from typing import Dict, List
+from uuid import uuid4
 
 import yaml
 from dotenv import load_dotenv
+from langfuse.decorators import langfuse_context, observe
 
 from backend.models.company import CompanyReport
 from backend.models.search import Entity, RAGQueries, SearchQueries
 from backend.models.user import UserReport
-from backend.utils.prompts import JD_PROMPT, PDF_PROMPT, QUERY_PROMPT, REPORT_TEMPLATE
+from backend.utils.prompts import (
+    JD_PROMPT,
+    PDF_PROMPT,
+    QUERY_PROMPT,
+    REPORT_INSTRUCTIONS,
+    REPORT_TEMPLATE,
+)
 from ghost_writer.modules.knowledgebase import KnowledgeBaseBuilder
 from ghost_writer.modules.storm import Storm
 from ghost_writer.modules.vectordb import Qdrant
@@ -26,6 +36,13 @@ porftfolio_config = config["knowledge_builder"]["portfolio"]
 
 provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
+langfuse_context.configure(
+    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+    host=os.getenv("LANGFUSE_HOST"),
+    enabled=bool(strtobool(os.getenv("LANGFUSE_ENABLED", "False"))),
+)
+
 
 class WriterEngine:
     """
@@ -37,6 +54,7 @@ class WriterEngine:
         self.company_collection_name = "company"
         self.workflow = Storm()
         self.vectordb = Qdrant()
+        self.session_id = str(uuid4())
 
     def get_job_kb(self, text: str):
         """
@@ -74,7 +92,7 @@ class WriterEngine:
         )
         logger.info("User Knowledge Base Created")
 
-    def load_reports(self):
+    def load_reports(self, **kwargs):
         """
         Generates structured reports of the user and the company.
 
@@ -97,8 +115,10 @@ class WriterEngine:
             self.company_report.append(result)
 
         logger.info("Company Report Loaded")
+        langfuse_context.flush()
 
-    def create_portfolios(self):
+    @observe()
+    def create_portfolios(self, **kwargs):
         """
         Generates knowledge documents for the user and the company using the knowledge builder module
 
@@ -135,7 +155,15 @@ class WriterEngine:
                 search_limit=search_config["url"]["limit"],
             )
         )
+        # langfuse setup
+        langfuse_context.update_current_observation(
+            name="Portfolio Creation",
+            output=[self.user_portfolio, self.company_portfolio],
+            session_id=self.session_id,
+        )
+
         logger.info("Company Portfolio Created")
+        langfuse_context.flush()
 
     def cross_knowledge_base_query(self, entity: Entity, queries: List[str]):
         """
@@ -228,16 +256,23 @@ class WriterEngine:
         )
         logger.info("Prompts are set for orchestration")
 
-    def generate_personas(self):
+    @observe(capture_input=False, capture_output=False)
+    def generate_personas(self, **kwargs):
         """
         Generate personas for multi-agent communication.
 
         """
-        self.personas = self.workflow.get_personas(prompt=self.persona_prompt)
+        self.personas = self.workflow.get_personas(prompt=self.persona_prompt, **kwargs)
+        # langfuse setup
+        langfuse_context.update_current_observation(
+            name="Persona Generation",
+            session_id=self.session_id,
+        )
         logger.info("Personas successfully created")
         return self.personas
 
-    def conversation_simulation(self, worker: Worker):
+    @observe(capture_input=False, capture_output=False)
+    def conversation_simulation(self, worker: Worker, **kwargs):
         """
         Simulates a single conversation for a worker with the expert.
         Args:
@@ -247,20 +282,27 @@ class WriterEngine:
         logger.info("Initiating conversation simulation")
         iterations = engine_config["simulation"]["iterations"]
         for _ in range(iterations):
-            message = self.workflow.get_questions(worker, self.question_prompt)
+            message = self.workflow.get_questions(
+                worker,
+                self.question_prompt,
+            )
             if "thank you so much for your help" in message.content.lower():
                 break
             queries = self.workflow.get_search_queries(
-                worker, RAGQueries, self.search_prompt
+                worker,
+                RAGQueries,
+                self.search_prompt,
             )
             results = self.cross_knowledge_base_query(**queries.model_dump())
 
             self.workflow.get_answers(
-                worker, self.answer_prompt.format(search_results=results)
+                worker,
+                self.answer_prompt.format(search_results=results),
             )
         logger.info("Conversation simulation completed")
         return worker.conversation.get_messages()
 
+    @observe(capture_input=False, capture_output=False)
     def parallel_conversation(self, personas: List[Worker]):
         """
         Starts conversation_simulation in parallel among many workers.
@@ -269,10 +311,22 @@ class WriterEngine:
 
         """
         logger.info("Initiating Parallel Conversation")
+        # langfuse setup
+        langfuse_context.update_current_observation(
+            name="Knowledge Storm Orchestration",
+            session_id=self.session_id,
+        )
+        trace_id = langfuse_context.get_current_trace_id()
+        observation_id = langfuse_context.get_current_observation_id()
         conversations = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_results = {
-                executor.submit(self.conversation_simulation, worker): worker
+                executor.submit(
+                    self.conversation_simulation,
+                    worker,
+                    langfuse_parent_trace_id=trace_id,
+                    langfuse_parent_observation_id=observation_id,
+                ): worker
                 for worker in personas
             }
 
@@ -283,11 +337,11 @@ class WriterEngine:
         logger.info("Parallel Conversation Completed")
         return conversations
 
+    @observe()
     def post_workflow(self):
         """
         Create reports for editing the users documents.
         """
-
         from llms.basellm import LLM
 
         reasoning_model = LLM(
@@ -304,18 +358,18 @@ class WriterEngine:
             Create reports using a static template
             """
             format = REPORT_TEMPLATE
+            instructions = REPORT_INSTRUCTIONS
             formatted_conv = worker.conversation.get_messages_as_str()
 
             def create_resume_report():
                 doc = "resume"
                 prompt = Prompt(
                     prompt="You are an expert resume editor and you are provided with an information_seeking_conversation and user_resume. You have to provide a report to update user_resume using the provided format",
+                    job_description=self.company_knowledge_base.source[0],
                     user_resume=self.user_knowledge_base.source[0],
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
-                    instructions="""1. Strictly follow the format provided. Including sections and their instructions.
-                    2. Report must be derived from the information_seeking_conversation. If information_seeking_conversation does target a particular section put "LGTM" in that section.
-                    3. Only output the resume report in the provided format. Do not output any additional details or unecessary whitespaces not fit for report.""",
+                    instructions=instructions,
                 )
                 response = reasoning_model(str(prompt))
                 return response
@@ -324,12 +378,11 @@ class WriterEngine:
                 doc = "cover letter"
                 prompt = Prompt(
                     prompt="You are an expert cover letter editor and you are provided with an information_seeking_conversation and user_cover_letter. You have to provide a report to update user_cover_letter using the provided format",
+                    job_description=self.company_knowledge_base.source[0],
                     user_cover_letter=self.user_knowledge_base.source[1],
                     information_seeking_conversation=formatted_conv,
                     format=format.format(doc=doc),
-                    instructions="""1. Strictly follow the format provided. Including sections and their instructions.
-                    2. Report must be derived from the information_seeking_conversation. If information_seeking_conversation does target a particular section put "LGTM" in that section and nothing else.
-                    3. Only output the cover letter report in the provided format. Do not output any additional details or unecessary whitespaces not fit for report.""",
+                    instructions=instructions,
                 )
                 response = reasoning_model(str(prompt))
                 return response
@@ -357,16 +410,16 @@ class WriterEngine:
             Report: \n{content}
             ###
             """
-            section = ""
+            reports = ""
             for worker in workers:
                 worker_content = report_template.format(
                     worker=worker.role, content=doc_report[worker.role]
                 )
-                section += worker_content
+                reports += worker_content
 
             prompt = Prompt(
                 prompt="Combine provided reports into a single comprehensive report by adapting the format to accommodate for sources",
-                sources=section,
+                sources=reports,
                 example_format="""
                             # Report 
                             ## Title
@@ -375,9 +428,9 @@ class WriterEngine:
                             Content as bullet points 2
                             """,
                 instructions="""
-                            1. Retain all informations from the sources.
-                            2. Remove or merge dubplicates gracefully. If a section content is "LGTM" do not consider that source for that section.
-                            3. Merge multiple sources into a single report using the example_format extensively covering all important details in the sources.
+                            1. Retain all substantive and unique information from the sources.
+                            2. Synthesize information across sources. Identify and merge points that convey the same core idea, even if worded differently, into a single, consolidated point. Avoid simple concatenation of lists. If a source's content for a specific section consists *only* of "LGTM" (or similar negligible confirmations), treat that source as providing no substantive information for that section and do not include "LGTM" or an empty bullet point in the final output for that source's contribution to that section.
+                            3. Merge the synthesized information from all sources into a single report strictly following the `example_format`. Ensure all unique and important details from the sources are covered.
                             4. Only output the single report and no other additional details.
                             """,
             )
@@ -412,3 +465,9 @@ class WriterEngine:
                 future, doc = future_doc.popitem()
                 report = future.result()
                 self.final_reports[doc] = process_content(report)
+
+        langfuse_context.update_current_observation(
+            name="Report Writing",
+            output=[self.final_reports[doc] for doc in self.final_reports],
+            session_id=self.session_id,
+        )

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langfuse.decorators import langfuse_context
 
 from backend.app.router import EngineRouter
 
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
     Remove files before shutdown
     """
     yield
+    langfuse_context.flush()
     try:
         items = os.listdir("backend/uploads")
         for item in items:
