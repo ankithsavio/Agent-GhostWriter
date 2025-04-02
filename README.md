@@ -158,8 +158,12 @@ knowledge_builder:
 
 ## Usage
 
-A brief demo of the application.
-![Video](https://ankithsavio.github.io/assets/video/agent-ghost-writer-video.mp4)
+
+  A brief demo of the application.
+
+<video width="600" controls>
+  <source src="https://ankithsavio.github.io/assets/video/agent-ghost-writer-video.mp4" type="video/mp4">
+</video>
 
       Inputs
 
