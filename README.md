@@ -158,7 +158,8 @@ knowledge_builder:
 
 ## Usage
 
-Video
+A brief demo of the application.
+![Video](https://ankithsavio.github.io/assets/video/agent-ghost-writer-video.mp4)
 
       Inputs
 
@@ -167,4 +168,4 @@ Video
 
 ## Dataflow Diagram
 
-![Figure](ghost_writer_figure.png)
+![Figure](assets/ghost_writer_figure.png)

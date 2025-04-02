@@ -61,7 +61,7 @@ services:
     depends_on:
       - mongodb_service
       - qdrant
-      - langfuse-web
+      # - langfuse-web
   
   nginx:
     image: nginx:latest
