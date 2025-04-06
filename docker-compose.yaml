@@ -54,6 +54,7 @@ services:
     environment:
       - QDRANT_URL=http://qdrant:6333
       - MONGO_URL=mongodb://${MONGO_ROOT_USERNAME:-root}:${MONGO_ROOT_PASSWORD:-example}@mongodb_service:27017/?authSource=admin
+      - SEARXNG_URL=http://searxng:8080
       - FRONTEND_ORIGIN_URL=http://localhost:3000
       - LANGFUSE_HOST=http://langfuse-web:3000
       - LANGFUSE_ENABLED=False

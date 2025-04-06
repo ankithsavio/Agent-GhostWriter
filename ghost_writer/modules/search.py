@@ -284,7 +284,7 @@ class SearXNGWeb(BaseWebSearch):
         Initialize the search module.
         """
         super().__init__(webpage_chunk_size, webpage_chunk_overlap)
-        self.instance = "http://localhost:8888/search"
+        self.instance = os.getenv("SEARXNG_HOST")
         self.params = {
             "format": "json",
             "categories": "general",
@@ -312,7 +312,10 @@ class SearXNGWeb(BaseWebSearch):
         time.sleep(delay)
 
         try:
-            response = requests.get(self.instance, params=self.params)
+            if self.instance:
+                response = requests.get(self.instance, params=self.params)
+            else:
+                raise EnvironmentError("Searxng host environment variable not set")
             response.raise_for_status()
 
             data = response.json()
