@@ -106,15 +106,12 @@ class LLM(BaseLLM):
             "messages": messages,
             **kwargs,
         }
-        print("iteration")
         try:
             response = self.client.chat.completions.create(stream=False, **self.config)
             return response
         except oai.RateLimitError:
-            print("Rate limit trying again")
             raise
         except oai.InternalServerError:
-            print("Internal server error trying again")
             raise
 
     def __call__(self, prompt: str, **kwargs: Dict[str, Any]) -> str:
