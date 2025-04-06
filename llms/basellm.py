@@ -52,6 +52,13 @@ class BaseLLM:
             base_url = "https://openrouter.ai/api/v1"
             api_key = os.getenv("OPENROUTER_API_KEY", None)
             self.default_model = "meta-llama/llama-3.3-70b-instruct:free"
+        elif provider == "cloudfare":
+            account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID", None)
+            api_key = os.getenv("CLOUDFLARE_AUTH_TOKEN", None)
+            base_url = (
+                f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1"
+            )
+            self.default_model = "@cf/meta/llama-4-scout-17b-16e-instruct"
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
@@ -84,9 +91,6 @@ class LLM(BaseLLM):
         self.config: Dict[str, Any] = {
             "model": self.model,
             "messages": None,
-            "temperature": None,
-            "top_p": None,
-            "max_completion_tokens": None,
         }
 
     @retry(
@@ -102,13 +106,15 @@ class LLM(BaseLLM):
             "messages": messages,
             **kwargs,
         }
-
+        print("iteration")
         try:
             response = self.client.chat.completions.create(stream=False, **self.config)
             return response
         except oai.RateLimitError:
+            print("Rate limit trying again")
             raise
         except oai.InternalServerError:
+            print("Internal server error trying again")
             raise
 
     def __call__(self, prompt: str, **kwargs: Dict[str, Any]) -> str:
@@ -145,8 +151,6 @@ class StructLLM(BaseLLM):
             "model": self.model,
             "messages": None,
             "temperature": 0,
-            "top_p": None,
-            "max_completion_tokens": None,
         }
 
     @retry(
@@ -204,7 +208,10 @@ class EmbeddingModel:
             api_key=os.getenv("GEMINI_API_KEY", None),
         )
         self.model = "text-embedding-004"
-        self.config: Dict[str, Any] = {"model": self.model, "input": None}
+        self.config: Dict[str, Any] = {
+            "model": self.model,
+            "input": None,
+        }
 
     @retry(
         retry=retry_if_exception_type((oai.RateLimitError, oai.InternalServerError)),
