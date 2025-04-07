@@ -2,7 +2,7 @@ import asyncio
 import os
 import random
 import time
-from typing import Dict, List, Union
+from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 import requests
@@ -68,7 +68,7 @@ class BaseWebSearch:
         parsed_url = urlparse(url)
         return parsed_url.netloc
 
-    def clean_html(self, content: CrawlResult) -> Union[str, None]:
+    def clean_html(self, content: CrawlResult) -> Optional[str]:
         """
         Cleans HTML content by extracting plain text.
         Args:

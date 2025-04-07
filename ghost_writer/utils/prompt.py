@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional
 
 import yaml
 
@@ -8,10 +8,14 @@ provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
 
 class Prompt:
+    """
+    A simple prompt template with in-built summarization and xml tag formatting.
+    """
+
     def __init__(
         self,
         prompt: str,
-        watch: Union[List[str], None] = None,
+        watch: Optional[List[str]] = None,
         token_limit: int = 4096,
         **kwargs,
     ):

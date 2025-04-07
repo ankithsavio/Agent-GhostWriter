@@ -18,6 +18,23 @@ provider_config = yaml.safe_load(open("config/llms.yaml", "r"))
 
 
 class KnowledgeBaseBuilder:
+    """
+    KnowledgeBaseBuilder creates and manages knowledge bases for RAG.
+    This builder handles processing source documents and storing them in vector databases for
+    efficient retrieval as portfolios. It supports both static document processing and
+    dynamic research through web searches.
+    Args:
+        source Union[str, List[str]]: File path(s) or raw text to process as knowledge sources
+        source_name (str): Name for the knowledge base collection in the vector database
+        model (Type[T]): Pydantic model defining the structure of sources
+        research (bool): Whether to enable web research capabilities
+        retrieval_limit (int): Maximum number of documents to retrieve per query
+        portfolio_chunk_size (int): Size of text chunks for processing portfolio documents
+        portfolio_chunk_overlap (int): Overlap between text chunks for portfolio documents
+        webpage_chunk_size (int), optional: Size of text chunks for processing web content defaults to 1000
+        webpage_chunk_overlap (int), optional: Overlap between text chunks for web content defaults to 0
+    """
+
     def __init__(
         self,
         source: Union[str, List[str]],

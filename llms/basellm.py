@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import openai as oai
 import yaml
@@ -23,7 +23,11 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class BaseLLM:
-    def __init__(self, provider: str, system_prompt: Union[str, None] = None):
+    """
+    OpenAI Client wrapper with support for multiple providers.
+    """
+
+    def __init__(self, provider: str, system_prompt: Optional[str] = None):
         self.system_prompt = (
             system_prompt if system_prompt else "You are an helpful assistant"
         )
@@ -76,14 +80,18 @@ class BaseLLM:
 
 class LLM(BaseLLM):
     """
-    Base Huggingface Wrapper for Llama-3.3-70B-Instruct. Uses OpenAI Client using Huggingface inference base url.
+    A wrapper for interacting with various OpenAI-compatible LLM APIs.
+    Args:
+        provider (str): The provider of the LLM API.
+        system_prompt (Optional[str]): System prompt defaults to None.
+        model (Optional[str]): model identifier, defaults to the baseclass's default_model.
     """
 
     def __init__(
         self,
         provider: str,
-        system_prompt: Union[str, None] = None,
-        model: Union[str, None] = None,
+        system_prompt: Optional[str] = None,
+        model: Optional[str] = None,
     ):
         super().__init__(provider, system_prompt)
 
@@ -132,14 +140,18 @@ class LLM(BaseLLM):
 
 class StructLLM(BaseLLM):
     """
-    Base Gemini Wrapper for gemini-2.0 flash and pro models. Uses OpenAI Client using gemini inference base url.
+    A wrapper for interacting with various OpenAI-compatible LLM APIs for Structured Outputs.
+    Args:
+        provider (str): The provider of the LLM API.
+        system_prompt (Optional[str]): System prompt defaults to None.
+        model (Optional[str]): model identifier, defaults to the baseclass's default_model.
     """
 
     def __init__(
         self,
         provider: str,
-        system_prompt: Union[str, None] = None,
-        model: Union[str, None] = None,
+        system_prompt: Optional[str] = None,
+        model: Optional[str] = None,
     ):
         super().__init__(provider, system_prompt)
 
