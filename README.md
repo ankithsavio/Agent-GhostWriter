@@ -159,17 +159,15 @@ knowledge_builder:
 ## Usage
 
 
-  A brief demo of the application.
+A brief demo of the application.
 
-<video width="600" controls>
-  <source src="https://ankithsavio.github.io/assets/video/agent-ghost-writer-video.mp4" type="video/mp4">
-</video>
+https://github.com/user-attachments/assets/f4dca820-122a-4fd7-963c-079d5747f9c3
 
-      Inputs
-
-      Outputs
 
 
 ## Dataflow Diagram
+<div align="center">
+  <img width = "50%" src="assets/ghost_writer_figure.png">
+</div>
 
-![Figure](assets/ghost_writer_figure.png)
+
