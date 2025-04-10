@@ -1,9 +1,9 @@
-# Agentic Ghost Writer
+# Ghost Writer
 Orchestrating LLM Personas to provide personalized CV suggestions
 
 
 ## Overview
-Agentic Ghost Writer is a multi-persona AI Workflow that can drastically improve your job application strategy. It provides personalized reports on how to improve your CV and Cover Letter for any job role. It uses web search and autonomous information seeking conversations to tailor the reports for your documents.
+Ghost Writer is a multi-persona AI Workflow that can drastically improve your job application strategy. It provides personalized reports on how to improve your CV and Cover Letter for any job role. It uses web search and autonomous information seeking conversations to tailor the reports for your documents.
 
 
 ## Key Features
@@ -84,8 +84,8 @@ MONGO_ROOT_PASSWORD=
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/ankithsavio/Agent-GhostWriter.git
-   cd Agent-GhostWriter
+   git clone https://github.com/ankithsavio/GhostWriter.git
+   cd GhostWriter
    ```
 
 2. Start the application using Docker Compose:
