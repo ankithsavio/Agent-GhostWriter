@@ -155,6 +155,21 @@ knowledge_builder:
 
 ```
 
+**(Optional) Observation and Monitoring**
+This application supports tracing using Langfuse. You can enable it by making the following changes to `docker-compose.yaml`.
+
+```yaml
+include:
+   - docker-compose.tracing.yaml 
+#   - docker-compose.web.yaml
+
+# ...
+backend:
+    environment:
+      - LANGFUSE_ENABLED=True # Enable
+
+```
+
 
 ## Usage
 
@@ -171,3 +186,6 @@ https://github.com/user-attachments/assets/f4dca820-122a-4fd7-963c-079d5747f9c3
 </div>
 
 
+# Acknowledgement
+* [STORM](https://github.com/stanford-oval/storm/tree/main): Inspirations for framework and the workflow.
+* [AI Scientist](https://github.com/SakanaAI/AI-Scientist): Inspirations for building custom LLM framework.
