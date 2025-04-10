@@ -177,4 +177,4 @@ qdrant_storage/
 tests/
 .vscode/
 pytest*
-
+assets/
